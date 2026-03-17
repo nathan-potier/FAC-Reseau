@@ -4,8 +4,8 @@
 #include <string.h>
 #include <arpa/inet.h>
 
-#define REQ_INSCRIPTION_SIZE 127 // 2 (codereq) + 2 (zeros) + 10 (nom) + 113 (cle)
-#define RESP_INSCRIPTION_SIZE 119 // 2 (codereq) + 2 (id) + 2 (portudp) + 113 (cle)
+#define REQ_INSCRIPTION_SIZE 125 // 2 (codereq + zeros) + 10 (nom) + 113 (cle)
+#define RESP_INSCRIPTION_SIZE 117 // 2 (codereq + id) + 2 (portudp) + 113 (cle)
 
 // Serialisation Requête d'inscription (CODEREQ=1)
 void serialize_inscription_req(const char *pseudo, uint8_t *buffer);

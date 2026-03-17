@@ -3,24 +3,30 @@
 #include <stdint.h>
 #include <string.h>
 #include <arpa/inet.h>
+#include "serialisation.h"
 
 void serialize_inscription_req(const char *pseudo, uint8_t *buffer) {
     // init buffer à 0
     memset(buffer, 0, REQ_INSCRIPTION_SIZE);
     
     // CODEREQ = 1 en Big-Endian
-    uint16_t codereq = htons(1);
-    memcpy(buffer, &codereq, sizeof(codereq));
+    uint16_t premiere_ligne = (1 << 11) | 0;
+    premiere_ligne = htons(premiere_ligne);
+    memcpy(buffer, &premiere_ligne, 2);
         
     // NOM : Copie du pseudo
-    strncpy((char *)(buffer + 4), pseudo, 10);
+    strncpy((char *)(buffer + 2), pseudo, 10);
 }
 
 void deserialize_inscription_resp(const uint8_t *buffer, uint16_t *out_id, uint16_t *out_portudp) {
-    uint16_t codereq;
-    
-    memcpy(&codereq, buffer, sizeof(codereq));
-    codereq = ntohs(codereq);
+    // CODEREQ + ID
+    uint16_t premiere_ligne;
+    memcpy(&premiere_ligne, buffer, 2);
+    premiere_ligne = ntohs(premiere_ligne);
+
+    // decalage 8 bits vers la droite pour le CODEREQ
+    uint8_t codereq = premiere_ligne >> 11; 
+    uint16_t id = premiere_ligne & 0x07FF; // On masque les 11 bits de poids fort pour ne garder que l'ID
     
     if (codereq != 2) {
         printf("Erreur : Le serveur a renvoyé un code inattendu (%u).\n", codereq);
@@ -28,10 +34,10 @@ void deserialize_inscription_resp(const uint8_t *buffer, uint16_t *out_id, uint1
     }
     
     // ID reçu
-    memcpy(out_id, buffer + 2, sizeof(*out_id));
-    *out_id = ntohs(*out_id);
+    *out_id = id;
     
     // Port UDP pour les notifs
-    memcpy(out_portudp, buffer + 4, sizeof(*out_portudp));
-    *out_portudp = ntohs(*out_portudp);
+    uint16_t portudp;
+    memcpy(&portudp, buffer + 2, 2);
+    *out_portudp = ntohs(portudp);
 }
