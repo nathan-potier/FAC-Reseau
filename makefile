@@ -1,10 +1,12 @@
+CFLAGS = -Wall -Wextra -g -pthread -I./include
+
 all: serveur client
 
-serveur: serveur.c
-	gcc -Wall -pthread serveur.c -o serveur
+serveur: src/serveur.c src/utils.c
+	gcc $(CFLAGS) -o serveur src/serveur.c src/utils.c
 
-client: client.c
-	gcc -Wall -pthread client.c -o client
+client: src/client.c src/utils.c
+	gcc $(CFLAGS) -o client src/client.c src/utils.c
 
 clean:
-	rm -f serveur client
+	rm -f serveur client src/*.o
