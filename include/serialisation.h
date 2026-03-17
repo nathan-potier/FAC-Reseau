@@ -24,7 +24,7 @@ typedef struct {
 } rep_inscription_t;
 
 // Serialisation Requête d'inscription (CODEREQ=1)
-void serialize_inscription_req(const char *pseudo, uint8_t *buffer);
+void serialize_inscription_req(const req_inscription_t *req, uint8_t *buffer);
 
 // Désérialise la réponse du serveur (CODEREQ=2) pour récupérer l'ID et le port UDP
-void deserialize_inscription_resp(const uint8_t *buffer, uint16_t *out_id, uint16_t *out_portudp);
+void deserialize_inscription_resp(const uint8_t *buffer, rep_inscription_t *rep);
