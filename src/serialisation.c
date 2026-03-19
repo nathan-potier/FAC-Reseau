@@ -16,6 +16,9 @@ void serialize_inscription_req(const req_inscription_t *req, uint8_t *buffer) {
         
     // NOM : Copie du pseudo
     strncpy((char *)(buffer + 2), req->nom, 10);
+
+    // Clé
+    memcpy(buffer + 12, req->cle, 113);
 }
 
 

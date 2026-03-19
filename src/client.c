@@ -22,7 +22,7 @@ int main() {
     printf("Entrez votre pseudo (10 caractères max) : ");
     
     if (fgets(pseudo, sizeof(pseudo), stdin) != NULL) {
-        pseudo[strcspn(pseudo, "\n")] = 0;
+        pseudo[strcspn(pseudo, "\n")] = 0; //remplace le \n par \0
         
         if (strlen(pseudo) == 0) {
             printf("Erreur : Le pseudo ne peut pas être vide.\n");
