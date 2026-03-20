@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
-#include "serialisation.h" 
+#include "serialisation_client.h" 
 
 int main() {
     char pseudo[100];
@@ -44,7 +44,7 @@ int main() {
 
     serialize_inscription_req(&requete, buffer_envoi);
     
-    // ENVOYZE AU SERVEUR + RECEVOIR -> DEV C (Noa le goat)
+    // ENVOYZE AU SERVEUR + RECEVOIR 
     
     deserialize_inscription_resp(buffer_reception, &reponse);
 

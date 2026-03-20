@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <arpa/inet.h>
-#include "serialisation.h"
+#include "serialisation_client.h"
 
 void serialize_inscription_req(const req_inscription_t *req, uint8_t *buffer) {
     // init buffer à 0
