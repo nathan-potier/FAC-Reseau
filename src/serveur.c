@@ -121,4 +121,5 @@ int main(void) {
     close(sock_serveur);
     pthread_mutex_destroy(&mutex_annuaire);
     return 0;
+    
 }
