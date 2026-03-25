@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include "utils.h"
+#include <unistd.h>
 #include "serialisation_client.h" 
 
 int main() {
