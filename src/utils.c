@@ -5,6 +5,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <net/if.h>
 #include "utils.h"
 
 
@@ -100,4 +101,30 @@ ssize_t my_recv(int sock, void *buf, size_t len) {
         total_recu += recu;
     }
     return total_recu;
+}
+
+
+
+int init_ecoute_udp_ipv6(int port) {
+    int sock = socket(PF_INET6, SOCK_DGRAM, 0);
+    if (sock < 0) {
+        perror("Erreur création socket UDP");
+        return -1;
+    }
+    int yes = 1;
+    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+
+    struct sockaddr_in6 adr_ecoute;
+    memset(&adr_ecoute, 0, sizeof(adr_ecoute));
+    adr_ecoute.sin6_family = AF_INET6;
+    adr_ecoute.sin6_port = htons(port);
+    adr_ecoute.sin6_addr = in6addr_any;
+
+    if (bind(sock, (struct sockaddr *)&adr_ecoute, sizeof(adr_ecoute)) < 0) {
+        perror("Erreur bind UDP");
+        close(sock);
+        return -1;
+    }
+
+    return sock;
 }

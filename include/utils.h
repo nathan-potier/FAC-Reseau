@@ -15,3 +15,5 @@ ssize_t my_send(int sock, const void *buf, size_t len);
 // Reçoit toute la quantité demandée 
 ssize_t my_recv(int sock, void *buf, size_t len);
 
+int init_ecoute_udp_ipv6(int port);
+
