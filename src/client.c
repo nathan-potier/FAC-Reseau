@@ -44,7 +44,14 @@ int main() {
 
     serialize_inscription_req(&requete, buffer_envoi);
     
-    // ENVOYZE AU SERVEUR + RECEVOIR 
+    int sock = init_client_tcp_ipv6("::1", 8080);
+    if (sock < 0) {
+        printf("Erreur de connexion au serveur.\n");
+        return 1;
+    } 
+
+    my_send(sock, buffer_envoi, REQ_INSCRIPTION_SIZE);
+    my_recv(sock, buffer_reception, RESP_INSCRIPTION_SIZE);
     
     deserialize_inscription_resp(buffer_reception, &reponse);
 
