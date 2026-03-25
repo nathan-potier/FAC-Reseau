@@ -51,10 +51,12 @@ int main() {
         printf("Erreur de connexion au serveur.\n");
         return 1;
     } 
-    close(sock);
+    
 
     my_send(sock, buffer_envoi, REQ_INSCRIPTION_SIZE);
     my_recv(sock, buffer_reception, RESP_INSCRIPTION_SIZE);
+
+    close(sock);
     
     deserialize_inscription_resp(buffer_reception, &reponse);
 

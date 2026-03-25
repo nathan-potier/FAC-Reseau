@@ -109,7 +109,6 @@ int main(void) {
         }
 
 
-
         // Création du thread avec la fonction 'serve'
         if (pthread_create(&tpthread[index_thread], NULL, serve, sockclient) == 0) {
             index_thread++;
