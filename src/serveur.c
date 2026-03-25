@@ -90,6 +90,9 @@ int main(void) {
     int sock_serveur = init_serveur_tcp_ipv6(PORT_SERVEUR);
     if (sock_serveur < 0) return EXIT_FAILURE;
 
+    pthread_t tpthread[MAX_USERS];
+    int index_thread = 0;
+
     printf("Serveur Paroles en écoute sur le port %d...\n", PORT_SERVEUR);
 
     while (1) {
@@ -105,9 +108,12 @@ int main(void) {
             continue;
         }
 
-        pthread_t thread;
+
+
         // Création du thread avec la fonction 'serve'
-        if (pthread_create(&thread, NULL, serve, sockclient) != 0) {
+        if (pthread_create(&tpthread[index_thread], NULL, serve, sockclient) == 0) {
+            index_thread++;
+        } else {
             close(*sockclient);
             free(sockclient);
         }
