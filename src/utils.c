@@ -147,3 +147,10 @@ int rejoindre_multicast_ipv6(int sock, const char *adresse_ip_multicast) {
 
     return 0;
 }
+
+void generer_adresse_multicast(uint16_t id_groupe, char *ip_str_sortie, uint8_t *ip_bin_sortie){
+
+    sprintf(ip_str_sortie, "ff12::%x", id_groupe);
+
+    inet_pton(AF_INET6, ip_str_sortie, ip_bin_sortie);
+}

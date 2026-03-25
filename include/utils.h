@@ -18,4 +18,8 @@ ssize_t my_recv(int sock, void *buf, size_t len);
 // Initialise une socket UDP IPv6 en écoute sur un port donné
 int init_ecoute_udp_ipv6(int port);
 
+// Abonne une socket UDP existante à un groupe Multicast IPv6
 int rejoindre_multicast_ipv6(int sock, const char *adresse_ip_multicast);
+
+// Génère une adresse Multicast IPv6 unique basée sur l'id du groupe
+void generer_adresse_multicast(uint16_t id_groupe, char *ip_str_sortie, uint8_t *ip_bin_sortie);
