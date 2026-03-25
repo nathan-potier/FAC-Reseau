@@ -15,5 +15,7 @@ ssize_t my_send(int sock, const void *buf, size_t len);
 // Reçoit toute la quantité demandée 
 ssize_t my_recv(int sock, void *buf, size_t len);
 
+// Initialise une socket UDP IPv6 en écoute sur un port donné
 int init_ecoute_udp_ipv6(int port);
 
+int rejoindre_multicast_ipv6(int sock, const char *adresse_ip_multicast);

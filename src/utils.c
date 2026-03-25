@@ -128,3 +128,22 @@ int init_ecoute_udp_ipv6(int port) {
 
     return sock;
 }
+
+
+int rejoindre_multicast_ipv6(int sock, const char *adresse_ip_multicast) {
+    struct ipv6_mreq group;
+    if (inet_pton(AF_INET6, adresse_ip_multicast, &group.ipv6mr_multiaddr) <= 0) {
+        perror("Erreur inet_pton multicast");
+        return -1;
+    }
+
+    // 0 = interface par défaut
+    group.ipv6mr_interface = 0;
+
+    if (setsockopt(sock, IPPROTO_IPV6, IPV6_JOIN_GROUP, &group, sizeof(group)) < 0) {
+        perror("Erreur abonnement groupe multicast");
+        return -1;
+    }
+
+    return 0;
+}
