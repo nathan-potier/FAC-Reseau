@@ -10,7 +10,9 @@ void deserialize_inscription_req(const uint8_t *buffer, req_inscription_t *req) 
     
     premiere_ligne = ntohs(premiere_ligne);
 
-    // Extraction des 5 premiers bits (CODEREQ) et 11 suivants (ZEROS) 
+    req->codereq = premiere_ligne >> 11;
+
+    // Extraction des 11 suivants (ZEROS) 
     req->zeros = premiere_ligne & 0x07FF;
 
     // Récupération du pseudo et de la clé 
