@@ -52,3 +52,16 @@ void deserialize_creer_groupe_req(const uint8_t *buffer, req_creer_groupe_t *req
     memset(req->nomg, 0, 256);
     memcpy(req->nomg, buffer + 3, req->len);
 }
+
+// Sérialise la réponse de création de groupe (CODEREQ = 4)
+void serialize_creer_groupe_resp(const rep_creer_groupe_t *rep, uint8_t *buffer) {
+    memset(buffer, 0, 20);
+
+    uint16_t premiere_ligne = htons((rep->codereq << 11) | (rep->idg & 0x07FF));
+    memcpy(buffer, &premiere_ligne, 2);
+
+    uint16_t port_net = htons(rep->portmdiff);
+    memcpy(buffer + 2, &port_net, 2);
+
+    memcpy(buffer + 4, rep->ipmdiff, 16);
+}
