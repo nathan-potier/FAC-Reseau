@@ -37,3 +37,18 @@ void serialize_inscription_resp(const rep_inscription_t *rep, uint8_t *buffer) {
 
     memcpy(buffer + 4, rep->cle, 113);
 }
+
+
+// Désérialise la requête de création de groupe (CODEREQ = 3)
+void deserialize_creer_groupe_req(const uint8_t *buffer, req_creer_groupe_t *req) {
+    uint16_t premiere_ligne;
+    memcpy(&premiere_ligne, buffer, 2);
+    premiere_ligne = ntohs(premiere_ligne); 
+
+    req->codereq = premiere_ligne >> 11;
+    req->id = premiere_ligne & 0x07FF;
+
+    req->len = buffer[2];
+    memset(req->nomg, 0, 256);
+    memcpy(req->nomg, buffer + 3, req->len);
+}

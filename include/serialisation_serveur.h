@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include "serialisation_client.h"
 
+// Requête du client -> serveur pour création de groupe (CODEREQ = 3)
 typedef struct {
     uint8_t codereq;
     uint16_t id;
@@ -11,6 +12,7 @@ typedef struct {
     char nomg[256];
 } req_creer_groupe_t;
 
+// Réponse du serveur -> client pour création de groupe (CODEREQ = 4)
 typedef struct {
     uint8_t codereq;
     uint16_t idg;
