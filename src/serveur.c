@@ -11,6 +11,7 @@
 
 #define PORT_SERVEUR 8080
 #define MAX_USERS 100
+#define MAX_GROUPES 50
 
 // Représentation interne d'un utilisateur côté serveur
 typedef struct {
@@ -24,6 +25,21 @@ typedef struct {
 utilisateur_t annuaire[MAX_USERS];
 uint16_t nb_inscrits = 0;
 
+// Structure d'un groupe côté serveur
+typedef struct {
+    uint16_t id_groupe;
+    char nom[256];
+    uint16_t id_admin;
+    uint16_t port_mdiff;
+    uint8_t ip_mdiff[16];
+    uint16_t membres[MAX_USERS];
+    uint16_t nb_membres;
+} groupe_t;
+
+// Base de données des groupes
+groupe_t groupes[MAX_GROUPES];
+uint16_t nb_groupes = 0;
+
 //Mutex empêchant plusieurs threads de modifier l'annuaire simultanément 
 pthread_mutex_t mutex_annuaire = PTHREAD_MUTEX_INITIALIZER;
 
@@ -33,51 +49,98 @@ void *serve(void *arg) {
     int sockclient = *((int *)arg);
     free(arg); 
 
-    uint8_t buffer_reception[REQ_INSCRIPTION_SIZE];
-    uint8_t buffer_envoi[RESP_INSCRIPTION_SIZE];
+    uint8_t buffer_reception[512]; 
+    uint8_t buffer_envoi[512];
 
-    // Lecture sécurisée : my_recv gère la fragmentation TCP
-    if (my_recv(sockclient, buffer_reception, REQ_INSCRIPTION_SIZE) <= 0) {
+    // Lecture des 2 premiers octets pour isoler le CODEREQ
+    if (my_recv(sockclient, buffer_reception, 2) <= 0) {
         close(sockclient);
-        return NULL; 
+        return NULL;
     }
 
-    req_inscription_t requete;
-    deserialize_inscription_req(buffer_reception, &requete);
+    uint16_t entete;
+    memcpy(&entete, buffer_reception, 2);
+    entete = ntohs(entete);
+    uint8_t codereq = entete >> 11;
 
-    // Traitement de la demande d'inscription (Code 1)
-    if (requete.codereq == 1) { 
-        rep_inscription_t reponse;
-        memset(&reponse, 0, sizeof(reponse));
+    switch (codereq) {
+        case 1: { //Inscription
+            my_recv(sockclient, buffer_reception + 2, REQ_INSCRIPTION_SIZE - 2);
+            req_inscription_t requete;
+            deserialize_inscription_req(buffer_reception, &requete);
 
-        //on verrouille l'accès à l'annuaire
-        pthread_mutex_lock(&mutex_annuaire);
+            rep_inscription_t reponse;
+            memset(&reponse, 0, sizeof(reponse));
 
-        if (nb_inscrits < MAX_USERS) {
-            nb_inscrits++;
-            uint16_t nouvel_id = nb_inscrits;
-            uint16_t port_attribue = 5000 + nouvel_id; 
+            //on verrouille l'accès à l'annuaire
+            pthread_mutex_lock(&mutex_annuaire);
+            if (nb_inscrits < MAX_USERS) {
+                nb_inscrits++;
+                annuaire[nb_inscrits - 1].id = nb_inscrits;
+                strncpy(annuaire[nb_inscrits - 1].pseudo, requete.nom, 10);
+                annuaire[nb_inscrits - 1].port_udp = 5000 + nb_inscrits;
+                memcpy(annuaire[nb_inscrits - 1].cle, requete.cle, 113);
 
-            annuaire[nb_inscrits - 1].id = nouvel_id;
-            strncpy(annuaire[nb_inscrits - 1].pseudo, requete.nom, 10);
-            annuaire[nb_inscrits - 1].port_udp = port_attribue;
-            memcpy(annuaire[nb_inscrits - 1].cle, requete.cle, 113);
+                reponse.codereq = 2; 
+                reponse.id = nb_inscrits;
+                reponse.portudp = annuaire[nb_inscrits - 1].port_udp;
+                memset(reponse.cle, 0, 113); 
+            }
+            pthread_mutex_unlock(&mutex_annuaire);
 
-            // Préparation de la réponse (Code 2 = Succès)
-            reponse.codereq = 2; 
-            reponse.id = nouvel_id;
-            reponse.portudp = port_attribue;
-            //clé remplie de zéros (aucune sécurité pour l'instant)
-            memset(reponse.cle, 0, 113); 
+            if (reponse.codereq == 2) {
+                serialize_inscription_resp(&reponse, buffer_envoi);
+                my_send(sockclient, buffer_envoi, RESP_INSCRIPTION_SIZE);
+            }
+            break;
         }
 
-        // on déverrouille l'accès
-        pthread_mutex_unlock(&mutex_annuaire);
+        case 3: { // Création d'un groupe
+            my_recv(sockclient, buffer_reception + 2, 1); 
+            uint8_t len = buffer_reception[2];
+            my_recv(sockclient, buffer_reception + 3, len); // Lecture du nom du groupe
 
-        if (reponse.codereq == 2) {
-            serialize_inscription_resp(&reponse, buffer_envoi);
-            my_send(sockclient, buffer_envoi, RESP_INSCRIPTION_SIZE);
+            req_creer_groupe_t requete;
+            deserialize_creer_groupe_req(buffer_reception, &requete);
+
+            rep_creer_groupe_t reponse;
+            memset(&reponse, 0, sizeof(reponse));
+
+            pthread_mutex_lock(&mutex_annuaire); 
+            if (nb_groupes < MAX_GROUPES) {
+                nb_groupes++;
+                uint16_t nouvel_idg = nb_groupes;
+
+                groupes[nb_groupes - 1].id_groupe = nouvel_idg;
+                groupes[nb_groupes - 1].id_admin = requete.id;
+                strncpy(groupes[nb_groupes - 1].nom, requete.nomg, len);
+                groupes[nb_groupes - 1].port_mdiff = 8000 + nouvel_idg;
+                
+                // celui qui crée le groupe en devient automatiquement membre
+                groupes[nb_groupes - 1].membres[0] = requete.id;
+                groupes[nb_groupes - 1].nb_membres = 1;
+
+                // Génération de l'adresse multicast pour ce groupe
+                char ip_str_temp[INET6_ADDRSTRLEN];
+                generer_adresse_multicast(nouvel_idg, ip_str_temp, groupes[nb_groupes - 1].ip_mdiff);
+
+                reponse.codereq = 4;
+                reponse.idg = nouvel_idg;
+                reponse.portmdiff = groupes[nb_groupes - 1].port_mdiff;
+                memcpy(reponse.ipmdiff, groupes[nb_groupes - 1].ip_mdiff, 16);
+            }
+            pthread_mutex_unlock(&mutex_annuaire);
+
+            if (reponse.codereq == 4) {
+                serialize_creer_groupe_resp(&reponse, buffer_envoi);
+                my_send(sockclient, buffer_envoi, 20);
+            }
+            break;
         }
+
+        default:
+            printf("Requête non reconnue (CodeReq: %d)\n", codereq);
+            break;
     }
 
     // on ferme la connexion TCP dès l'échange terminé
@@ -89,9 +152,6 @@ int main(void) {
     // Initialisation du serveur TCP IPv6
     int sock_serveur = init_serveur_tcp_ipv6(PORT_SERVEUR);
     if (sock_serveur < 0) return EXIT_FAILURE;
-
-    pthread_t tpthread[MAX_USERS];
-    int index_thread = 0;
 
     printf("Serveur Paroles en écoute sur le port %d...\n", PORT_SERVEUR);
 
@@ -110,9 +170,8 @@ int main(void) {
 
 
         // Création du thread avec la fonction 'serve'
-        if (pthread_create(&tpthread[index_thread], NULL, serve, sockclient) == 0) {
-            index_thread++;
-        } else {
+        pthread_t thread; 
+        if (pthread_create(&thread, NULL, serve, sockclient) != 0) {
             close(*sockclient);
             free(sockclient);
         }
