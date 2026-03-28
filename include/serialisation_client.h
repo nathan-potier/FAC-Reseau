@@ -15,13 +15,13 @@ typedef struct {
     char cle[113];        // Clé
 } req_inscription_t;
 
-// Réponse du serveur -> client (CODEREQ = 2)
+// CODEREQ = 3 (Créer un groupe)
 typedef struct {
-    uint8_t codereq;      // 2
-    uint8_t id;           // Id unique
-    uint16_t portudp;     // Port UDP
-    char cle[113];        // Clé
-} rep_inscription_t;
+    uint8_t codereq;
+    uint16_t id;
+    uint8_t len;
+    char nomg[256];
+} req_creer_groupe_t;
 
 // Serialisation Requête d'inscription (CODEREQ=1)
 void serialize_inscription_req(const req_inscription_t *req, uint8_t *buffer);

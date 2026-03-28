@@ -4,13 +4,13 @@
 #include <stdint.h>
 #include "serialisation_client.h"
 
-// Requête du client -> serveur pour création de groupe (CODEREQ = 3)
+// Réponse du serveur -> client (CODEREQ = 2)
 typedef struct {
-    uint8_t codereq;
-    uint16_t id;
-    uint8_t len;
-    char nomg[256];
-} req_creer_groupe_t;
+    uint8_t codereq;      // 2
+    uint8_t id;           // Id unique
+    uint16_t portudp;     // Port UDP
+    char cle[113];        // Clé
+} rep_inscription_t;
 
 // Réponse du serveur -> client pour création de groupe (CODEREQ = 4)
 typedef struct {
