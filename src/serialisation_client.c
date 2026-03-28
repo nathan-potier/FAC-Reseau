@@ -83,3 +83,11 @@ size_t serialize_inviter(const req_inviter_t *req, uint8_t *buffer) {
     
     return decalage_ligne_invite;
 }
+
+size_t serialize_lister_invites(const req_lister_invites_t *req, uint8_t *buffer) {
+    uint16_t premiere_ligne = (req->codereq << 11) | (req->id_client & 0x07FF);
+    premiere_ligne = htons(premiere_ligne);
+    memcpy(buffer, &premiere_ligne, 2);
+    
+    return 2;
+}
