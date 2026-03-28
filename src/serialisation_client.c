@@ -101,6 +101,16 @@ size_t serialize_inviter(const req_inviter_t *req, uint8_t *buffer) {
     return decalage_ligne_invite;
 }
 
+void deserialize_inviter_resp(const uint8_t *buffer, rep_inviter_t *rep) {
+    uint16_t ligne1;
+    memcpy(&ligne1, buffer, 2);
+    ligne1 = ntohs(ligne1);
+    
+    rep->codereq = ligne1 >> 11;
+    
+    rep->zeros = ligne1 & 0x07FF; 
+}
+
 size_t serialize_lister_invites(const req_lister_invites_t *req, uint8_t *buffer) {
     uint16_t premiere_ligne = (req->codereq << 11) | (req->id_client & 0x07FF);
     premiere_ligne = htons(premiere_ligne);
