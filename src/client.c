@@ -68,5 +68,34 @@ int main() {
         printf("\n[Erreur] Le serveur a refusé l'inscription (Code retour : %u).\n", reponse.codereq);
     }
 
+
+    uint16_t mon_id = reponse.id; // sauvegarde ID
+    char commande[256];
+
+    printf("\n=== MENU ===\n");
+    printf("create <nom_groupe>\n");
+    printf("invite <id_groupe> <id_dest1> [id_dest2] [id_dest3]...\n");
+    printf("li\n"); // lister les invités
+    printf("join <id_groupe>\n");
+    printf("decline <id_groupe>\n");
+    printf("quit\n");
+    printf("============\n\n");
+
+    while(1){
+        printf("> ");
+        if (fgets(commande, sizeof(commande), stdin) == NULL) break;
+        commande[strcspn(commande, "\n")] = 0;
+
+        if (strcmp(commande, "quit") == 0) {
+            printf("Fermeture du client\n");
+            break;
+        }
+
+        else{
+            if (strlen(commande) > 0) printf("Commande inconnue.\n");
+        }
+    }
+
+
     return 0;
 }
