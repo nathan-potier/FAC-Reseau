@@ -172,18 +172,29 @@ int main() {
                 int sock_cmd = init_client_tcp_ipv6("::1", 8080);
                 if (sock_cmd >= 0) {
                     my_send(sock_cmd, buffer_cmd, taille_msg);
-                    printf("requete d'invitation envoyé au serveur\n");
+                    printf("Requête d'invitation envoyée au serveur.\n");
                     
                     uint8_t buffer_rep[512];
-                    my_recv(sock_cmd, buffer_rep, sizeof(buffer_rep));
+                    int recu = my_recv(sock_cmd, buffer_rep, 2);
                     close(sock_cmd); 
                     
-                    printf("%d invitation(s) envoyée(s) pour le groupe %u !\n", req_inv.nb, req_inv.id_groupe);
+                    if (recu == 2) {
+                        rep_inviter_t rep_inv_resp;
+                        deserialize_inviter_resp(buffer_rep, &rep_inv_resp);
+                        
+                        if (rep_inv_resp.codereq == 24) {
+                            printf("SUCCÈS : %d invitation(s) envoyée(s) pour le groupe %u !\n", req_inv.nb, req_inv.id_groupe);
+                        } else {
+                            printf("Erreur : Le serveur a répondu avec le code %u (attendu: 24).\n", rep_inv_resp.codereq);
+                        }
+                    } else {
+                        printf("Erreur : Le serveur a fermé la connexion avant de confirmer.\n");
+                    }
                 } else {
                     printf("Erreur de connexion au serveur.\n");
                 }
             } else {
-                printf("Erreur de format. Usage: /invite <id_groupe> <id_dest1> [id_dest2] [id_dest3]...\n");
+                printf("Erreur de format. Usage: invite <id_groupe> <id_dest1> [id_dest2] [id_dest3]...\n");
             }
 
 

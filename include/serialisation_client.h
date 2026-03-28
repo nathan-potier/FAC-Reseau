@@ -30,3 +30,6 @@ void deserialize_lister_invites_resp(const uint8_t *buffer, rep_lister_invites_t
 
 // CODEREQ = 8
 size_t serialize_action_invitation(const req_action_invitation_t *req, uint8_t *buffer);
+
+// CODEREQ = 24
+void deserialize_inviter_resp(const uint8_t *buffer, rep_inviter_t *rep);
