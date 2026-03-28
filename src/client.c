@@ -75,7 +75,7 @@ int main() {
     printf("\n=== MENU ===\n");
     printf("create <nom_groupe>\n");
     printf("invite <id_groupe> <id_dest1> [id_dest2] [id_dest3]...\n");
-    printf("li\n"); // lister les invités
+    printf("li (lister les invités)\n"); // lister les invités
     printf("join <id_groupe>\n");
     printf("decline <id_groupe>\n");
     printf("quit\n");
@@ -89,6 +89,36 @@ int main() {
         if (strcmp(commande, "quit") == 0) {
             printf("Fermeture du client\n");
             break;
+        }
+
+        if (strncmp(commande, "create ", 7) == 0) {
+            req_creer_groupe_t req_cg;
+            req_cg.codereq = 3;
+            req_cg.id = mon_id;
+            
+            char *nom_groupe = commande + 7; // A partir de l'espace arpes la commande
+            req_cg.len = strlen(nom_groupe);
+            if (req_cg.len > 255){
+                req_cg.len = 255;
+            }
+            strncpy(req_cg.nomg, nom_groupe, req_cg.len);
+
+            uint8_t buffer_cmd[512];
+            size_t taille_msg = serialize_creer_groupe(&req_cg, buffer_cmd);
+
+            int sock_cmd = init_client_tcp_ipv6("::1", 8080);
+            if (sock_cmd < 0) continue;
+
+            my_send(sock_cmd, buffer_cmd, taille_msg);
+            printf("Requete de creation du groupe \"%s\" envoyé.\n", nom_groupe);
+            
+            uint8_t buffer_rep[512];
+            int recu = my_recv(sock_cmd, buffer_rep, sizeof(buffer_rep));
+            close(sock_cmd);
+
+            if (recu > 0) {
+                printf("Réponse du serveur pour la création.\n");
+            }
         }
 
         else{
