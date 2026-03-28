@@ -16,6 +16,9 @@ void deserialize_inscription_resp(const uint8_t *buffer, rep_inscription_t *rep)
 // CODEREQ = 3
 size_t serialize_creer_groupe(const req_creer_groupe_t *req, uint8_t *buffer);
 
+// Désérialise la réponse du serveur apres la création d'un groupe (CODEREQ=4)
+void deserialize_creer_groupe_resp(const uint8_t *buffer, rep_creer_groupe_t *rep);
+
 // CODEREQ = 5
 size_t serialize_inviter(const req_inviter_t *req, uint8_t *buffer);
 

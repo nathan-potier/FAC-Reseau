@@ -59,6 +59,23 @@ size_t serialize_creer_groupe(const req_creer_groupe_t *req, uint8_t *buffer) {
     return 3 + req->len; 
 }
 
+void deserialize_creer_groupe_resp(const uint8_t *buffer, rep_creer_groupe_t *rep) {
+    uint16_t ligne1;
+    memcpy(&ligne1, buffer, 2);
+    ligne1 = ntohs(ligne1);
+    
+    rep->codereq = ligne1 >> 11;
+    rep->idg = ligne1 & 0x07FF;
+    
+    // PORTMDIFF
+    uint16_t port_net;
+    memcpy(&port_net, buffer + 2, 2);
+    rep->portmdiff = ntohs(port_net);
+    
+    // IPMDIFF 
+    memcpy(rep->ipmdiff, buffer + 4, 16);
+}
+
 size_t serialize_inviter(const req_inviter_t *req, uint8_t *buffer) {
     uint16_t premiere_ligne = (req->codereq << 11) | (req->id_client & 0x07FF);
     premiere_ligne = htons(premiere_ligne);
