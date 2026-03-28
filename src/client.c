@@ -91,7 +91,7 @@ int main() {
             break;
         }
 
-        if (strncmp(commande, "create ", 7) == 0) {
+        else if (strncmp(commande, "create ", 7) == 0) {
             req_creer_groupe_t req_cg;
             req_cg.codereq = 3;
             req_cg.id = mon_id;
@@ -119,6 +119,59 @@ int main() {
             if (recu > 0) {
                 printf("Réponse du serveur pour la création.\n");
             }
+        }
+
+        else if (strncmp(commande, "invite ", 7) == 0){
+            req_inviter_t req_inv;
+            req_inv.codereq = 5;
+            req_inv.id_client = mon_id;
+            req_inv.nb = 0;
+
+            char *ptr = commande + 7; // On saute "invite "
+            char *endptr;
+
+            long id_groupe = strtol(ptr, &endptr, 10);
+
+            if (ptr != endptr) {
+                req_inv.id_groupe = (uint16_t)id_groupe;
+                ptr = endptr; // decalage jusqu'à apres le numero du groupe
+                
+                // on lit tout les invités (max 31) jusqu'à la fin
+                while (*ptr != '\0' && req_inv.nb < 31) {
+                    long id_invite_lu = strtol(ptr, &endptr, 10);
+                    
+                    if (ptr == endptr) {
+                        break;
+                    }
+                    
+                    req_inv.id_invites[req_inv.nb] = (uint16_t)id_invite_lu;
+                    req_inv.nb++;
+                    ptr = endptr;
+                }
+            }
+
+            if (req_inv.nb > 0) {
+                uint8_t buffer_cmd[512];
+                size_t taille_msg = serialize_inviter(&req_inv, buffer_cmd);
+
+                int sock_cmd = init_client_tcp_ipv6("::1", 8080);
+                if (sock_cmd >= 0) {
+                    my_send(sock_cmd, buffer_cmd, taille_msg);
+                    printf("requete d'invitation envoyé au serveur\n");
+                    
+                    uint8_t buffer_rep[512];
+                    my_recv(sock_cmd, buffer_rep, sizeof(buffer_rep));
+                    close(sock_cmd); 
+                    
+                    printf("%d invitation(s) envoyée(s) pour le groupe %u !\n", req_inv.nb, req_inv.id_groupe);
+                } else {
+                    printf("Erreur de connexion au serveur.\n");
+                }
+            } else {
+                printf("Erreur de format. Usage: /invite <id_groupe> <id_dest1> [id_dest2] [id_dest3]...\n");
+            }
+
+
         }
 
         else{
