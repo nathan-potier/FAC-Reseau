@@ -113,11 +113,26 @@ int main() {
             printf("Requete de creation du groupe \"%s\" envoyé.\n", nom_groupe);
             
             uint8_t buffer_rep[512];
-            int recu = my_recv(sock_cmd, buffer_rep, sizeof(buffer_rep));
+            int recu = my_recv(sock_cmd, buffer_rep,RESP_CREER_GROUPE_SIZE );
             close(sock_cmd);
 
             if (recu > 0) {
-                printf("Réponse du serveur pour la création.\n");
+                rep_creer_groupe_t rep_cg;
+                deserialize_creer_groupe_resp(buffer_rep, &rep_cg);
+
+                if (rep_cg.codereq == 4) {
+                    // Transforme l'IP binaire en texte
+                    char ip[INET6_ADDRSTRLEN];
+                    inet_ntop(AF_INET6, rep_cg.ipmdiff, ip, INET6_ADDRSTRLEN);
+
+                    printf("\nGROUPE CRÉÉ AVEC SUCCÈS !\n");
+                    printf("ID du groupe : %u\n", rep_cg.idg);
+                    printf("IP Multicast : %s\n", ip);
+                    printf("Port Multicast : %u\n\n", rep_cg.portmdiff);
+                    
+                } else {
+                    printf("Erreur : Le serveur a renvoyé un code inattendu (%u).\n", rep_cg.codereq);
+                }
             }
         }
 
