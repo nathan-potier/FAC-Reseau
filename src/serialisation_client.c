@@ -91,3 +91,16 @@ size_t serialize_lister_invites(const req_lister_invites_t *req, uint8_t *buffer
     
     return 2;
 }
+
+size_t serialize_action_invitation(const req_action_invitation_t *req, uint8_t *buffer) {
+    uint16_t premiere_ligne = (req->codereq << 11) | (req->id_client & 0x07FF);
+    premiere_ligne = htons(premiere_ligne);
+    memcpy(buffer, &premiere_ligne, 2);
+    
+    // IDG (11 bits) + AN (2 bits) + ZEROS (3 bits)
+    uint16_t ligne2 = (req->id_groupe << 5) | ((req->an & 0x03) << 3) | 0;
+    ligne2 = htons(ligne2);
+    memcpy(buffer + 2, &ligne2, 2);
+    
+    return 4;
+}
