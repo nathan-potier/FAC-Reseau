@@ -49,16 +49,16 @@ typedef struct {
 
 // CODEREQ = 6 (Demander les invitations)
 typedef struct {
-    uint8_t codereq;      // 6
+    uint8_t codereq;      // 5
     uint16_t id_client;   // 11 bits
 } req_lister_invites_t;
 
 // CODEREQ = 8 (Accepter/Refuser/Quitter)
 typedef struct {
-    uint8_t codereq;      // 8
+    uint8_t codereq;      // 5
     uint16_t id_client;   // 11 bits
     uint16_t id_groupe;   // 11 bits
-    uint8_t an;           // 1 = Accepte, 0 = Refuse, 2 = Quitte
+    uint8_t an;           // 1 = Accepte, 0 = Refuse, 2 = Quitte sur 2 bits
 } req_action_invitation_t;
 
 #endif
