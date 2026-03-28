@@ -58,3 +58,28 @@ size_t serialize_creer_groupe(const req_creer_groupe_t *req, uint8_t *buffer) {
     // 2 octets (premiere_ligne) + 1 octet (len) + x octets (nomg)
     return 3 + req->len; 
 }
+
+size_t serialize_inviter(const req_inviter_t *req, uint8_t *buffer) {
+    uint16_t premiere_ligne = (req->codereq << 11) | (req->id_client & 0x07FF);
+    premiere_ligne = htons(premiere_ligne);
+    memcpy(buffer, &premiere_ligne, 2);
+    
+    // IDG (11 bits) + NB (5 bits)
+    uint16_t ligne2 = (req->id_groupe << 5) | (req->nb & 0x1F); // 0x1F = 11111
+    ligne2 = htons(ligne2);
+    memcpy(buffer + 2, &ligne2, 2);
+    
+    // 4 car 2 octets pour la ligne 1 (CODEREQ + ton ID)
+    //       2 octets pour la ligne 2 (ID du groupe + nombre d'invités)
+    size_t decalage_ligne_invite = 4;
+    
+    // ID_invite (11 bits) + ZEROS (5 bits)
+    for (int i = 0; i < req->nb; i++) {
+        uint16_t invite = (req->id_invites[i] << 5) | 0;
+        invite = htons(invite);
+        memcpy(buffer + decalage_ligne_invite, &invite, 2);
+        decalage_ligne_invite += 2;
+    }
+    
+    return decalage_ligne_invite;
+}
