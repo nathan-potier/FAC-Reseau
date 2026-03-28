@@ -46,3 +46,15 @@ void deserialize_inscription_resp(const uint8_t *buffer, rep_inscription_t *rep)
     // Copie de la clé du serveur
     memcpy(rep->cle, buffer + 4, 113);
 }
+
+size_t serialize_creer_groupe(const req_creer_groupe_t *req, uint8_t *buffer) {
+    uint16_t premiere_ligne = (req->codereq << 11) | (req->id & 0x07FF);
+    premiere_ligne = htons(premiere_ligne);
+    memcpy(buffer, &premiere_ligne, 2);
+
+    buffer[2] = req->len;
+    memcpy(buffer + 3, req->nomg, req->len);
+    
+    // 2 octets (premiere_ligne) + 1 octet (len) + x octets (nomg)
+    return 3 + req->len; 
+}

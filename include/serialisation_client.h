@@ -12,7 +12,7 @@ void serialize_inscription_req(const req_inscription_t *req, uint8_t *buffer);
 // Désérialise la réponse du serveur (CODEREQ=2) pour récupérer l'ID et le port UDP
 void deserialize_inscription_resp(const uint8_t *buffer, rep_inscription_t *rep);
 
-// retournent la taille du message généré en octets :
+// retournent la taille du message généré en octets pour l'envoi par le send:
 // CODEREQ = 3
 size_t serialize_creer_groupe(const req_creer_groupe_t *req, uint8_t *buffer);
 
