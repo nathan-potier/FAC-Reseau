@@ -38,4 +38,27 @@ typedef struct {
     uint8_t ipmdiff[16];
 } rep_creer_groupe_t;
 
+// CODEREQ = 5 (Inviter)
+typedef struct {
+    uint8_t codereq;      // 5
+    uint16_t id_client;   // 11
+    uint16_t id_groupe;   // 11
+    uint8_t nb;           // 5 bits max donc 31 invités max
+    uint16_t id_invites[31]; 
+} req_inviter_t;
+
+// CODEREQ = 6 (Demander les invitations)
+typedef struct {
+    uint8_t codereq;      // 6
+    uint16_t id_client;   // 11 bits
+} req_lister_invites_t;
+
+// CODEREQ = 8 (Accepter/Refuser/Quitter)
+typedef struct {
+    uint8_t codereq;      // 8
+    uint16_t id_client;   // 11 bits
+    uint16_t id_groupe;   // 11 bits
+    uint8_t an;           // 1 = Accepte, 0 = Refuse, 2 = Quitte
+} req_action_invitation_t;
+
 #endif
