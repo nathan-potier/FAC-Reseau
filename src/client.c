@@ -23,7 +23,9 @@ int main() {
 
     uint16_t mon_id = 0;
     uint16_t mon_port_udp = 0;
+    char cle_serveur[113];
     int deja_inscrit = 0;
+    
 
 
 
@@ -33,10 +35,15 @@ int main() {
     FILE *fichier = fopen("mon_profil.txt", "r");
 
     if (fichier != NULL) {
-        if (fscanf(fichier, "%hu %hu", &mon_id, &mon_port_udp) == 2) {
+        rep_inscription_t profil_sauvegarde;
+        if (fread(&profil_sauvegarde, sizeof(rep_inscription_t), 1, fichier) == 1) {
+            mon_id = profil_sauvegarde.id;
+            mon_port_udp = profil_sauvegarde.portudp;
+            memcpy(cle_serveur, profil_sauvegarde.cle, 113);
+
             printf("[INFO] Profil local trouvé ! Reconnexion automatique...\n");
             printf("Bon retour ! Ton ID est %u et ton port UDP est %u.\n", mon_id, mon_port_udp);
-            deja_inscrit = 1; // On lève le drapeau car on a retrouvé les infos
+            deja_inscrit = 1; 
         }
         fclose(fichier);
     }
@@ -90,11 +97,19 @@ int main() {
 
             mon_id = reponse.id; // sauvegarde ID
             mon_port_udp = reponse.portudp;
+            memcpy(cle_serveur, reponse.cle, 113);
+
+            rep_inscription_t nouveau_profil;
+            nouveau_profil.codereq = reponse.codereq;
+            nouveau_profil.id = reponse.id;
+            nouveau_profil.portudp = reponse.portudp;
+            memcpy(nouveau_profil.cle, cle_serveur, 113);
+
 
             //Enregistrement des infos pour la reconnexion
-            FILE *fichier_ecriture = fopen("mon_profil.txt", "w"); 
+            FILE *fichier_ecriture = fopen("mon_profil.txt", "wb"); 
             if (fichier_ecriture != NULL) {
-                fprintf(fichier_ecriture, "%hu %hu\n", mon_id, mon_port_udp);
+                fwrite(&nouveau_profil, sizeof(rep_inscription_t), 1, fichier_ecriture);
                 fclose(fichier_ecriture);
                 printf("[INFO] Profil sauvegardé localement !\n");
             }
