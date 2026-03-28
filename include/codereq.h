@@ -5,6 +5,7 @@
 
 #define REQ_INSCRIPTION_SIZE 125 // 2 (codereq + zeros) + 10 (nom) + 113 (cle)
 #define RESP_INSCRIPTION_SIZE 117 // 2 (codereq + id) + 2 (portudp) + 113 (cle)
+#define RESP_CREER_GROUPE_SIZE 20
 
 // Requête du client -> serveur pour inscription (CODEREQ = 1)
 typedef struct {
@@ -37,5 +38,41 @@ typedef struct {
     uint16_t portmdiff;
     uint8_t ipmdiff[16];
 } rep_creer_groupe_t;
+
+// CODEREQ = 5 (Inviter)
+typedef struct {
+    uint8_t codereq;      // 5
+    uint16_t id_client;   // 11
+    uint16_t id_groupe;   // 11
+    uint8_t nb;           // 5 bits max donc 31 invités max
+    uint16_t id_invites[31]; 
+} req_inviter_t;
+
+// CODEREQ = 6 (Demander les invitations)
+typedef struct {
+    uint8_t codereq;      // 5
+    uint16_t id_client;   // 11 bits
+} req_lister_invites_t;
+
+// CODEREQ = 7 (Liste des invitations)
+typedef struct {
+    uint8_t codereq;      
+    uint8_t nb;           // Nombre d'invitations (5 bits max)
+    uint16_t id_groupes[31]; // Les IDs des groupes (11 bits chacun)
+} rep_lister_invites_t;
+
+// CODEREQ = 8 (Accepter/Refuser/Quitter)
+typedef struct {
+    uint8_t codereq;      // 5
+    uint16_t id_client;   // 11 bits
+    uint16_t id_groupe;   // 11 bits
+    uint8_t an;           // 1 = Accepte, 0 = Refuse, 2 = Quitte sur 2 bits
+} req_action_invitation_t;
+
+// Réponse du serveur -> client suite à une invitation (CODEREQ = 24)
+typedef struct {
+    uint8_t codereq;      // 24 (sur 5 bits)
+    uint16_t zeros;       // 0 (sur 11 bits)
+} rep_inviter_t;
 
 #endif
