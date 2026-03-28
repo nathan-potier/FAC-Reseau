@@ -109,6 +109,25 @@ size_t serialize_lister_invites(const req_lister_invites_t *req, uint8_t *buffer
     return 2;
 }
 
+void deserialize_lister_invites_resp(const uint8_t *buffer, rep_lister_invites_t *rep) {
+    uint16_t ligne1;
+    memcpy(&ligne1, buffer, 2);
+    ligne1 = ntohs(ligne1);
+    
+    rep->codereq = ligne1 >> 11;
+    rep->nb = (ligne1 >> 6) & 0x1F; 
+    
+    size_t decalage = 2;
+    for(int i = 0; i < rep->nb; i++) {
+        uint16_t ligne_groupe;
+        memcpy(&ligne_groupe, buffer + decalage, 2);
+        ligne_groupe = ntohs(ligne_groupe);
+        
+        rep->id_groupes[i] = ligne_groupe >> 5;
+        decalage += 2;
+    }
+}
+
 size_t serialize_action_invitation(const req_action_invitation_t *req, uint8_t *buffer) {
     uint16_t premiere_ligne = (req->codereq << 11) | (req->id_client & 0x07FF);
     premiere_ligne = htons(premiere_ligne);

@@ -54,6 +54,13 @@ typedef struct {
     uint16_t id_client;   // 11 bits
 } req_lister_invites_t;
 
+// CODEREQ = 7 (Liste des invitations)
+typedef struct {
+    uint8_t codereq;      
+    uint8_t nb;           // Nombre d'invitations (5 bits max)
+    uint16_t id_groupes[31]; // Les IDs des groupes (11 bits chacun)
+} rep_lister_invites_t;
+
 // CODEREQ = 8 (Accepter/Refuser/Quitter)
 typedef struct {
     uint8_t codereq;      // 5

@@ -25,5 +25,8 @@ size_t serialize_inviter(const req_inviter_t *req, uint8_t *buffer);
 // CODEREQ = 6
 size_t serialize_lister_invites(const req_lister_invites_t *req, uint8_t *buffer);
 
+// CODEREQ = 7
+void deserialize_lister_invites_resp(const uint8_t *buffer, rep_lister_invites_t *rep);
+
 // CODEREQ = 8
 size_t serialize_action_invitation(const req_action_invitation_t *req, uint8_t *buffer);
