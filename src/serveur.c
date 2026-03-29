@@ -12,6 +12,7 @@
 #define PORT_SERVEUR 8080
 #define MAX_USERS 100
 #define MAX_GROUPES 50
+#define MAX_INVITATIONS 150
 
 // Représentation interne d'un utilisateur côté serveur
 typedef struct {
@@ -39,6 +40,16 @@ typedef struct {
 // Base de données des groupes
 groupe_t groupes[MAX_GROUPES];
 uint16_t nb_groupes = 0;
+
+// Structure d'une invitation en attente
+typedef struct {
+    uint16_t id_invite;
+    uint16_t id_groupe;
+} invitation_t;
+
+// Base de données des invitations
+invitation_t invitations[MAX_INVITATIONS];
+uint16_t nb_invitations = 0;
 
 //Mutex empêchant plusieurs threads de modifier l'annuaire simultanément 
 pthread_mutex_t mutex_annuaire = PTHREAD_MUTEX_INITIALIZER;
@@ -135,6 +146,38 @@ void *serve(void *arg) {
                 serialize_creer_groupe_resp(&reponse, buffer_envoi);
                 my_send(sockclient, buffer_envoi, 20);
             }
+            break;
+        }
+
+        case 5: { // Inviter des utilisateurs
+            my_recv(sockclient, buffer_reception + 2, 2); 
+            uint16_t ligne2;
+            memcpy(&ligne2, buffer_reception + 2, 2);
+            ligne2 = ntohs(ligne2);
+            uint16_t idg = ligne2 >> 5;           // ID du groupe 
+            uint8_t nb_invites = ligne2 & 0x1F;   // Nombre d'invités
+
+            my_recv(sockclient, buffer_reception + 4, nb_invites * 2);
+
+            pthread_mutex_lock(&mutex_annuaire);
+            for (int i = 0; i < nb_invites; i++) {
+                if (nb_invitations < MAX_INVITATIONS) {
+                    uint16_t id_invite;
+                    memcpy(&id_invite, buffer_reception + 4 + (i * 2), 2);
+                    id_invite = ntohs(id_invite) >> 5;
+
+                    // Ajout dans le tableau des invitations
+                    invitations[nb_invitations].id_invite = id_invite;
+                    invitations[nb_invitations].id_groupe = idg;
+                    nb_invitations++;
+                }
+            }
+            pthread_mutex_unlock(&mutex_annuaire);
+
+            // Envoi de l'acquittement (CODEREQ = 24)
+            uint16_t ack = htons(24 << 11);
+            memcpy(buffer_envoi, &ack, 2);
+            my_send(sockclient, buffer_envoi, 2);
             break;
         }
 
