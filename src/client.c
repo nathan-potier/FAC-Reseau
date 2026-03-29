@@ -125,7 +125,7 @@ int main() {
                     char ip[INET6_ADDRSTRLEN];
                     inet_ntop(AF_INET6, rep_cg.ipmdiff, ip, INET6_ADDRSTRLEN);
 
-                    printf("\nGROUPE CRÉÉ AVEC SUCCÈS !\n");
+                    printf("\nGROUPE \"%s\" CRÉÉ AVEC SUCCÈS !\n", nom_groupe);
                     printf("ID du groupe : %u\n", rep_cg.idg);
                     printf("IP Multicast : %s\n", ip);
                     printf("Port Multicast : %u\n\n", rep_cg.portmdiff);
@@ -183,7 +183,7 @@ int main() {
                         deserialize_inviter_resp(buffer_rep, &rep_inv_resp);
                         
                         if (rep_inv_resp.codereq == 24) {
-                            printf("SUCCÈS : %d invitation(s) envoyée(s) pour le groupe %u !\n", req_inv.nb, req_inv.id_groupe);
+                            printf("%d invitation(s) envoyée(s) pour le groupe %u !\n", req_inv.nb, req_inv.id_groupe);
                         } else {
                             printf("Erreur : Le serveur a répondu avec le code %u (attendu: 24).\n", rep_inv_resp.codereq);
                         }
@@ -196,8 +196,48 @@ int main() {
             } else {
                 printf("Erreur de format. Usage: invite <id_groupe> <id_dest1> [id_dest2] [id_dest3]...\n");
             }
+        }
 
+        else if (strcmp(commande, "li") == 0) {
+            req_lister_invites_t req_li;
+            req_li.codereq = 6;
+            req_li.id_client = mon_id;
 
+            uint8_t buffer_cmd[512];
+            size_t taille_msg = serialize_lister_invites(&req_li, buffer_cmd);
+
+            int sock_cmd = init_client_tcp_ipv6("::1", 8080);
+            if (sock_cmd >= 0) {
+                my_send(sock_cmd, buffer_cmd, taille_msg);
+                
+                uint8_t buffer_rep[512];
+                // recv car la taille est variable
+                int recu = recv(sock_cmd, buffer_rep, sizeof(buffer_rep), 0);
+                close(sock_cmd);
+
+                if (recu >= 2) {
+                    rep_lister_invites_t rep_li;
+                    deserialize_lister_invites_resp(buffer_rep, &rep_li);
+
+                    if (rep_li.codereq == 7) {
+                        printf("\n--- VOS INVITATIONS EN ATTENTE (%d) ---\n", rep_li.nb);
+                        if (rep_li.nb == 0) {
+                            printf("Vous n'avez aucune invitation.\n");
+                        } else {
+                            for (int i = 0; i < rep_li.nb; i++) {
+                                printf("Groupe ID : %u\n", rep_li.id_groupes[i]);
+                            }
+                        }
+                        printf("--------------------------------------\n\n");
+                    } else {
+                        printf("Erreur serveur (Code: %u)\n", rep_li.codereq);
+                    }
+                } else {
+                    printf("Erreur de réception ou serveur déconnecté.\n");
+                }
+            } else {
+                printf("Erreur de connexion au serveur.\n");
+            }
         }
 
         else{
