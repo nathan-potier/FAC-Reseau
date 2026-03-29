@@ -196,7 +196,7 @@ void *serve(void *arg) {
             }
 
             // Préparation de la réponse (CODEREQ = 7)
-            uint16_t rep_ligne1 = htons((7 << 11) | (nb_invits_client & 0x07FF));
+            uint16_t rep_ligne1 = htons((7 << 11) | ((nb_invits_client & 0x1F) << 6));
             memcpy(buffer_envoi, &rep_ligne1, 2);
             int offset = 2; // Curseur d'écriture dans le buffer
 
@@ -232,6 +232,83 @@ void *serve(void *arg) {
             pthread_mutex_unlock(&mutex_annuaire);
 
             my_send(sockclient, buffer_envoi, offset); 
+            break;
+        }
+
+        case 8: { // Répondre à une invitation (Accepter ou Refuser)
+            my_recv(sockclient, buffer_reception + 2, 2); // Lecture ligne 2 : ID du groupe et action 
+            uint16_t ligne2;
+            memcpy(&ligne2, buffer_reception + 2, 2);
+            ligne2 = ntohs(ligne2);
+            uint16_t idg = ligne2 >> 5;
+            uint8_t action = (ligne2 >> 3) & 0x03; // AN = 1 (accepte), 0 (refuse), 2 (quitte)
+
+            uint16_t id_client = entete & 0x07FF;
+
+            pthread_mutex_lock(&mutex_annuaire);
+
+            // Supprimer l'invitation en attente
+            for (int i = 0; i < nb_invitations; i++) {
+                if (invitations[i].id_invite == id_client && invitations[i].id_groupe == idg) {
+                    invitations[i] = invitations[nb_invitations - 1]; 
+                    nb_invitations--;
+                    break;
+                }
+            }
+
+            // Traitement selon l'action
+            if (action == 1) { // Accepte AN = 1
+                int idx_groupe = -1;
+                for (int i = 0; i < nb_groupes; i++) {
+                    if (groupes[i].id_groupe == idg) {
+                        idx_groupe = i;
+                        // Ajout de l'utilisateur dans les membres
+                        groupes[i].membres[groupes[i].nb_membres] = id_client;
+                        groupes[i].nb_membres++;
+                        break;
+                    }
+                }
+
+                if (idx_groupe != -1) {
+                    // CODEREQ = 9 avec toutes les infos du groupe
+                    uint16_t rep_ligne1 = htons((9 << 11) | (idg & 0x07FF));
+                    memcpy(buffer_envoi, &rep_ligne1, 2);
+
+                    uint16_t port_net = htons(groupes[idx_groupe].port_mdiff);
+                    memcpy(buffer_envoi + 2, &port_net, 2);
+
+                    memcpy(buffer_envoi + 4, groupes[idx_groupe].ip_mdiff, 16);
+
+                    uint16_t nb_membres_net = htons(groupes[idx_groupe].nb_membres);
+                    memcpy(buffer_envoi + 20, &nb_membres_net, 2);
+
+                    int offset = 22;
+                    // On écrit ID et NOM de chaque membre
+                    for (int i = 0; i < groupes[idx_groupe].nb_membres; i++) {
+                        uint16_t id_membre = groupes[idx_groupe].membres[i];
+                        uint16_t id_net = htons(id_membre << 5); 
+                        memcpy(buffer_envoi + offset, &id_net, 2);
+                        offset += 2;
+
+                        char pseudo_membre[10] = {0};
+                        for (int j = 0; j < nb_inscrits; j++) {
+                            if (annuaire[j].id == id_membre) {
+                                memcpy(pseudo_membre, annuaire[j].pseudo, 10);
+                                break;
+                            }
+                        }
+                        memcpy(buffer_envoi + offset, pseudo_membre, 10);
+                        offset += 10;
+                    }
+                    my_send(sockclient, buffer_envoi, offset);
+                }
+            } else { // Refuse AN = 0 ou Quitte AN = 2
+                uint16_t ack = htons(24 << 11);
+                memcpy(buffer_envoi, &ack, 2);
+                my_send(sockclient, buffer_envoi, 2);
+            }
+
+            pthread_mutex_unlock(&mutex_annuaire);
             break;
         }
 
