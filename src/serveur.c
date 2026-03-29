@@ -181,6 +181,60 @@ void *serve(void *arg) {
             break;
         }
 
+        case 6: { // Demander les invitations en attente
+            uint16_t id_client = entete & 0x07FF;
+            uint16_t ids_groupes_invites[MAX_GROUPES];
+            uint8_t nb_invits_client = 0;
+
+            pthread_mutex_lock(&mutex_annuaire);
+            // On cherche toutes les invitations pour ce client
+            for (int i = 0; i < nb_invitations; i++) {
+                if (invitations[i].id_invite == id_client) {
+                    ids_groupes_invites[nb_invits_client] = invitations[i].id_groupe;
+                    nb_invits_client++;
+                }
+            }
+
+            // Préparation de la réponse (CODEREQ = 7)
+            uint16_t rep_ligne1 = htons((7 << 11) | (nb_invits_client & 0x07FF));
+            memcpy(buffer_envoi, &rep_ligne1, 2);
+            int offset = 2; // Curseur d'écriture dans le buffer
+
+            for (int i = 0; i < nb_invits_client; i++) {
+                uint16_t idg = ids_groupes_invites[i];
+                
+                // Recherche des infos du groupe
+                for (int j = 0; j < nb_groupes; j++) {
+                    if (groupes[j].id_groupe == idg) {
+                        uint8_t len = strlen(groupes[j].nom);
+                        uint16_t ligne_g = htons((idg << 5) | (len & 0x1F));
+                        memcpy(buffer_envoi + offset, &ligne_g, 2);
+                        offset += 2;
+
+                        // Nom du groupe
+                        memcpy(buffer_envoi + offset, groupes[j].nom, len);
+                        offset += len;
+
+                        // Recherche du pseudo de l'admin du groupe
+                        char pseudo_admin[10] = {0};
+                        for (int k = 0; k < nb_inscrits; k++) {
+                            if (annuaire[k].id == groupes[j].id_admin) {
+                                memcpy(pseudo_admin, annuaire[k].pseudo, 10);
+                                break;
+                            }
+                        }
+                        memcpy(buffer_envoi + offset, pseudo_admin, 10);
+                        offset += 10;
+                        break; // On a trouvé le groupe, on passe au suivant
+                    }
+                }
+            }
+            pthread_mutex_unlock(&mutex_annuaire);
+
+            my_send(sockclient, buffer_envoi, offset); 
+            break;
+        }
+
         default:
             printf("Requête non reconnue (CodeReq: %d)\n", codereq);
             break;
