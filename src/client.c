@@ -32,7 +32,7 @@ int main() {
 
     printf("BIENVENUE SUR PAROLES\n");
 
-    FILE *fichier = fopen("mon_profil.txt", "r");
+    FILE *fichier = fopen("mon_profil.txt", "rb");
 
     if (fichier != NULL) {
         rep_inscription_t profil_sauvegarde;

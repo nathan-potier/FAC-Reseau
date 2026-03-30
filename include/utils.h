@@ -1,3 +1,4 @@
+#ifndef UTILS_H
 #define UTILS_H
 
 #include <stddef.h>
@@ -29,3 +30,5 @@ int envoyer_message_udp_ipv6(const char *ip_dest, int port_dest, const uint8_t *
 
 // Envoie une erreur TCP (CODEREQ = 31) avec un message
 void envoyer_erreur_tcp(int sock, const char *message_erreur);
+
+#endif
