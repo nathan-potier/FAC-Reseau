@@ -1,3 +1,4 @@
+#ifndef UTILS_H
 #define UTILS_H
 
 #include <stddef.h>
@@ -23,3 +24,11 @@ int rejoindre_multicast_ipv6(int sock, const char *adresse_ip_multicast);
 
 // Génère une adresse Multicast IPv6 unique basée sur l'id du groupe
 void generer_adresse_multicast(uint16_t id_groupe, char *ip_str_sortie, uint8_t *ip_bin_sortie);
+
+// envoie un messahe en UDP vers une adresse IPv6 (Unicast ou Multicast)
+int envoyer_message_udp_ipv6(const char *ip_dest, int port_dest, const uint8_t *message, size_t len);
+
+// Envoie une erreur TCP (CODEREQ = 31) avec un message
+void envoyer_erreur_tcp(int sock, const char *message_erreur);
+
+#endif
