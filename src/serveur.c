@@ -320,6 +320,7 @@ void *serve(void *arg) {
 
         default:
             printf("Requête non reconnue (CodeReq: %d)\n", codereq);
+            envoyer_erreur_tcp(sockclient, "Erreur : Code de requete inconnu ou mal formaté.");
             break;
     }
 
