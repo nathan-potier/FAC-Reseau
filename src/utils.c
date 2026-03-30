@@ -173,3 +173,21 @@ int envoyer_message_udp_ipv6(const char *ip_dest, int port_dest, const uint8_t *
     close(sock);
     return (envoye == (ssize_t)len) ? 0 : -1;
 }
+
+// Envoie une erreur TCP (CODEREQ = 31) avec un message
+void envoyer_erreur_tcp(int sock, const char *message_erreur) {
+    uint8_t buffer[1024]; 
+    
+    // pour ne pas déborder du buffer
+    uint16_t len = strlen(message_erreur);
+    if (len > 1022) len = 1022; 
+
+    // Construction des 2 octets d'entête 
+    uint16_t entete = (31 << 11) | (len & 0x07FF);
+    entete = htons(entete); 
+
+    memcpy(buffer, &entete, 2);
+    memcpy(buffer + 2, message_erreur, len);
+    
+    my_send(sock, buffer, 2 + len);
+}
