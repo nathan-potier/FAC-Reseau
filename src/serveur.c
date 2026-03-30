@@ -63,6 +63,12 @@ void *serve(void *arg) {
     uint8_t buffer_reception[512]; 
     uint8_t buffer_envoi[512];
 
+    struct timeval tv;
+    tv.tv_sec = 120; // 30 secondes d'attente maximum
+    tv.tv_usec = 0;
+    setsockopt(sockclient, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
+
     // Lecture des 2 premiers octets pour isoler le CODEREQ
     if (my_recv(sockclient, buffer_reception, 2) <= 0) {
         close(sockclient);
