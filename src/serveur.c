@@ -13,6 +13,7 @@
 #define MAX_USERS 100
 #define MAX_GROUPES 50
 #define MAX_INVITATIONS 150
+#define ADRESSE_LOCALE "::1"
 
 // Représentation interne d'un utilisateur côté serveur
 typedef struct {

@@ -6,6 +6,9 @@
 #include <unistd.h>
 #include "serialisation_client.h" 
 
+#define ADRESSE_LOCALE "::1"
+#define PORT_SERVEUR 8080
+
 int main() {
     char pseudo[100];
     
@@ -76,7 +79,7 @@ int main() {
 
         serialize_inscription_req(&requete, buffer_envoi);
         
-        int sock = init_client_tcp_ipv6("::1", 8080);
+        int sock = init_client_tcp_ipv6(ADRESSE_LOCALE, PORT_SERVEUR);
         if (sock < 0) {
             printf("Erreur de connexion au serveur.\n");
             return 1;
@@ -156,7 +159,7 @@ int main() {
             uint8_t buffer_cmd[512];
             size_t taille_msg = serialize_creer_groupe(&req_cg, buffer_cmd);
 
-            int sock_cmd = init_client_tcp_ipv6("::1", 8080);
+            int sock_cmd = init_client_tcp_ipv6(ADRESSE_LOCALE, PORT_SERVEUR);
             if (sock_cmd < 0) continue;
 
             my_send(sock_cmd, buffer_cmd, taille_msg);
@@ -219,7 +222,7 @@ int main() {
                 uint8_t buffer_cmd[512];
                 size_t taille_msg = serialize_inviter(&req_inv, buffer_cmd);
 
-                int sock_cmd = init_client_tcp_ipv6("::1", 8080);
+                int sock_cmd = init_client_tcp_ipv6(ADRESSE_LOCALE, PORT_SERVEUR);
                 if (sock_cmd >= 0) {
                     my_send(sock_cmd, buffer_cmd, taille_msg);
                     printf("Requête d'invitation envoyée au serveur.\n");
@@ -256,7 +259,7 @@ int main() {
             uint8_t buffer_cmd[512];
             size_t taille_msg = serialize_lister_invites(&req_li, buffer_cmd);
 
-            int sock_cmd = init_client_tcp_ipv6("::1", 8080);
+            int sock_cmd = init_client_tcp_ipv6(ADRESSE_LOCALE, PORT_SERVEUR);
             if (sock_cmd >= 0) {
                 my_send(sock_cmd, buffer_cmd, taille_msg);
                 
@@ -301,7 +304,7 @@ int main() {
             uint8_t buffer_cmd[512];
             size_t taille_msg = serialize_action_invitation(&req_act, buffer_cmd);
 
-            int sock_cmd = init_client_tcp_ipv6("::1", 8080);
+            int sock_cmd = init_client_tcp_ipv6(ADRESSE_LOCALE, PORT_SERVEUR);
             if (sock_cmd >= 0) {
                 my_send(sock_cmd, buffer_cmd, taille_msg);
                 
@@ -330,7 +333,7 @@ int main() {
             uint8_t buffer_cmd[512];
             size_t taille_msg = serialize_action_invitation(&req_act, buffer_cmd);
 
-            int sock_cmd = init_client_tcp_ipv6("::1", 8080);
+            int sock_cmd = init_client_tcp_ipv6(ADRESSE_LOCALE, PORT_SERVEUR);
             if (sock_cmd >= 0) {
                 my_send(sock_cmd, buffer_cmd, taille_msg);
                 
