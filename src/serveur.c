@@ -177,6 +177,16 @@ void *serve(void *arg) {
                     invitations[nb_invitations].id_invite = id_invite;
                     invitations[nb_invitations].id_groupe = idg;
                     nb_invitations++;
+                    if (id_invite > 0 && id_invite <= nb_inscrits) {
+                        int index_client = id_invite - 1; 
+
+                        // CODEREQ(22) sur 5 bits + IDG sur 11 bits
+                        uint16_t notif_invit = htons((22 << 11) | (idg & 0x07FF));
+                        
+                        // paquet UDP vers le client 
+                        envoyer_message_udp_ipv6(ADRESSE_LOCALE, annuaire[index_client].port_udp, (const uint8_t *)&notif_invit, 2); // vérifier si on envoie a la bonne personne 
+                    }
+                    
                 }
             }
             pthread_mutex_unlock(&mutex_annuaire);
@@ -308,11 +318,31 @@ void *serve(void *arg) {
                         offset += 10;
                     }
                     my_send(sockclient, buffer_envoi, offset);
-                }
+
+                    char ip_str[INET6_ADDRSTRLEN];
+                    inet_ntop(AF_INET6, groupes[idx_groupe].ip_mdiff, ip_str, INET6_ADDRSTRLEN);
+
+                    // CODEREQ(19) + ID groupe
+                    uint16_t notif_accept = htons((19 << 11) | (idg & 0x07FF));
+                    envoyer_message_udp_ipv6(ip_str, groupes[idx_groupe].port_mdiff, (const uint8_t *)&notif_accept, 2);
+                }   
             } else { // Refuse AN = 0 ou Quitte AN = 2
                 uint16_t ack = htons(24 << 11);
                 memcpy(buffer_envoi, &ack, 2);
                 my_send(sockclient, buffer_envoi, 2);
+
+                if (action == 2) { // Si le client a quiitté le groupe (et non juste refusé l'invitation)
+                    if (idg > 0 && idg <= nb_groupes) {
+                        int idx_groupe = idg - 1;
+
+                        char ip_str[INET6_ADDRSTRLEN];
+                        inet_ntop(AF_INET6, groupes[idx_groupe].ip_mdiff, ip_str, INET6_ADDRSTRLEN);
+                        
+                        // CODEREQ(20) + IDG
+                        uint16_t notif_leave = htons((20 << 11) | (idg & 0x07FF));
+                        envoyer_message_udp_ipv6(ip_str, groupes[idx_groupe].port_mdiff, (const uint8_t *)&notif_leave, 2);// vérifier si on envoie a la bonne personne 
+                    }
+                }
             }
 
             pthread_mutex_unlock(&mutex_annuaire);
