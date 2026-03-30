@@ -334,14 +334,24 @@ void *serve(void *arg) {
 
                 if (action == 2) { // Si le client a quiitté le groupe (et non juste refusé l'invitation)
                     if (idg > 0 && idg <= nb_groupes) {
-                        int idx_groupe = idg - 1;
+                        int idx_groupe = idg - 1; //faire attention a ne pas décaler dans le tableau si on en supprime 
 
                         char ip_str[INET6_ADDRSTRLEN];
                         inet_ntop(AF_INET6, groupes[idx_groupe].ip_mdiff, ip_str, INET6_ADDRSTRLEN);
                         
+                        // CODEREQ(21) + IDG
+                        if (id_client == groupes[idx_groupe].id_admin) {
+                            uint16_t notif_close = htons((21 << 11) | (idg & 0x07FF));
+                            envoyer_message_udp_ipv6(ip_str, groupes[idx_groupe].port_mdiff, (const uint8_t *)&notif_close, 2);
+                            
+                            // On "désactive" le groupe proprement (sans décaler le tableau, attention à ne pas changer plus tard)
+                            groupes[idx_groupe].id_groupe = 0; 
+                        } 
                         // CODEREQ(20) + IDG
-                        uint16_t notif_leave = htons((20 << 11) | (idg & 0x07FF));
-                        envoyer_message_udp_ipv6(ip_str, groupes[idx_groupe].port_mdiff, (const uint8_t *)&notif_leave, 2);// vérifier si on envoie a la bonne personne 
+                        else {
+                            uint16_t notif_leave = htons((20 << 11) | (idg & 0x07FF));
+                            envoyer_message_udp_ipv6(ip_str, groupes[idx_groupe].port_mdiff, (const uint8_t *)&notif_leave, 2);
+                        }
                     }
                 }
             }
