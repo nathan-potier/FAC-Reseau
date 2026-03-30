@@ -154,3 +154,22 @@ void generer_adresse_multicast(uint16_t id_groupe, char *ip_str_sortie, uint8_t 
 
     inet_pton(AF_INET6, ip_str_sortie, ip_bin_sortie);
 }
+
+int envoyer_message_udp_ipv6(const char *ip_dest, int port_dest, const uint8_t *message, size_t len){
+
+    int sock = socket(PF_INET6, SOCK_DGRAM, 0);
+    if (sock < 0) return -1;
+
+    // Préparation de l'adresse de destination 
+    struct sockaddr_in6 cible;
+    memset(&cible, 0, sizeof(cible));
+    cible.sin6_family = AF_INET6;
+    cible.sin6_port = htons(port_dest);
+    inet_pton(AF_INET6, ip_dest, &cible.sin6_addr);
+
+    
+    ssize_t envoye = sendto(sock, message, len, 0, (struct sockaddr *)&cible, sizeof(cible));
+    
+    close(sock);
+    return (envoye == (ssize_t)len) ? 0 : -1;
+}
