@@ -64,7 +64,7 @@ void *serve(void *arg) {
     uint8_t buffer_envoi[512];
 
     struct timeval tv;
-    tv.tv_sec = 120; // 30 secondes d'attente maximum
+    tv.tv_sec = 120; // 120 secondes d'attente max
     tv.tv_usec = 0;
     setsockopt(sockclient, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 
