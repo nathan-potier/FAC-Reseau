@@ -5,6 +5,7 @@
 #include "utils.h"
 #include <unistd.h>
 #include "serialisation_client.h" 
+#include "utils_client.h" 
 
 #define ADRESSE_LOCALE "::1"
 #define PORT_SERVEUR 8080
@@ -124,6 +125,13 @@ int main() {
     }
 
     char commande[256];
+
+    int sock_udp = init_ecoute_udp_ipv6(mon_port_udp);
+    if (sock_udp >= 0) {
+        pthread_t thread_udp;
+        pthread_create(&thread_udp, NULL, ecoute_notifications_udp, &sock_udp);
+        printf("Écoute des notifications UDP activée sur le port %u.\n", mon_port_udp); //printf de test à enlever quand les notifs seront tous bien init
+    }
 
     printf("\n=== MENU ===\n");
     printf("create <nom_groupe>\n");
