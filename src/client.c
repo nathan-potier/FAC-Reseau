@@ -240,6 +240,62 @@ int main() {
             }
         }
 
+        else if (strncmp(commande, "join ", 5) == 0) {
+            req_action_invitation_t req_act;
+            req_act.codereq = 8;
+            req_act.id_client = mon_id;
+            
+            req_act.id_groupe = (uint16_t)atoi(commande + 5); 
+            req_act.an = 1;
+
+            uint8_t buffer_cmd[512];
+            size_t taille_msg = serialize_action_invitation(&req_act, buffer_cmd);
+
+            int sock_cmd = init_client_tcp_ipv6("::1", 8080);
+            if (sock_cmd >= 0) {
+                my_send(sock_cmd, buffer_cmd, taille_msg);
+                
+                uint8_t buffer_rep[512];
+                int recu = recv(sock_cmd, buffer_rep, sizeof(buffer_rep), 0);
+                close(sock_cmd);
+
+                if (recu > 0) {
+                    printf("Invitation acceptée pour le groupe %u !\n", req_act.id_groupe);
+                } else {
+                    printf("Le serveur n'a pas répondu.\n");
+                }
+            } else {
+                printf("Erreur de connexion au serveur.\n");
+            }
+        }
+
+        else if (strncmp(commande, "decline ", 8) == 0) {
+            req_action_invitation_t req_act;
+            req_act.codereq = 8;
+            req_act.id_client = mon_id;
+            
+            req_act.id_groupe = (uint16_t)atoi(commande + 8); 
+            req_act.an = 0;
+
+            uint8_t buffer_cmd[512];
+            size_t taille_msg = serialize_action_invitation(&req_act, buffer_cmd);
+
+            int sock_cmd = init_client_tcp_ipv6("::1", 8080);
+            if (sock_cmd >= 0) {
+                my_send(sock_cmd, buffer_cmd, taille_msg);
+                
+                uint8_t buffer_rep[512];
+                int recu = recv(sock_cmd, buffer_rep, sizeof(buffer_rep), 0);
+                close(sock_cmd);
+
+                if (recu > 0) {
+                    printf("Invitation pour le groupe %u refusée et supprimée.\n", req_act.id_groupe);
+                }
+            } else {
+                printf("Erreur de connexion au serveur.\n");
+            }
+        }
+
         else{
             if (strlen(commande) > 0) printf("Commande inconnue.\n");
         }
