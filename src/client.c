@@ -24,15 +24,10 @@ int main() {
     memset(buffer_envoi, 0, REQ_INSCRIPTION_SIZE);
     memset(buffer_reception, 0, RESP_INSCRIPTION_SIZE);
 
-
     uint16_t mon_id = 0;
     uint16_t mon_port_udp = 0;
     char cle_serveur[113];
     int deja_inscrit = 0;
-    
-
-
-
 
     printf("BIENVENUE SUR PAROLES\n");
 
@@ -139,6 +134,7 @@ int main() {
     printf("li (lister les invités)\n"); // lister les invités
     printf("join <id_groupe>\n");
     printf("decline <id_groupe>\n");
+    printf("members <id_groupe> (0 pour tous)\n");
     printf("quit\n");
     printf("============\n\n");
 
@@ -178,6 +174,9 @@ int main() {
             close(sock_cmd);
 
             if (recu > 0) {
+                if (check_erreur_serveur(buffer_rep, recu)) {
+                    continue;
+                }
                 rep_creer_groupe_t rep_cg;
                 deserialize_creer_groupe_resp(buffer_rep, &rep_cg);
 
@@ -240,6 +239,9 @@ int main() {
                     close(sock_cmd); 
                     
                     if (recu == 2) {
+                        if (check_erreur_serveur(buffer_rep, recu)) {
+                            continue;
+                        }
                         rep_inviter_t rep_inv_resp;
                         deserialize_inviter_resp(buffer_rep, &rep_inv_resp);
                         
@@ -277,6 +279,9 @@ int main() {
                 close(sock_cmd);
 
                 if (recu >= 2) {
+                    if (check_erreur_serveur(buffer_rep, recu)) {
+                        continue;
+                    }
                     rep_lister_invites_t rep_li;
                     deserialize_lister_invites_resp(buffer_rep, &rep_li);
 
@@ -321,6 +326,9 @@ int main() {
                 close(sock_cmd);
 
                 if (recu > 0) {
+                    if (check_erreur_serveur(buffer_rep, recu)) {
+                        continue;
+                    }
                     printf("Invitation acceptée pour le groupe %u !\n", req_act.id_groupe);
                 } else {
                     printf("Le serveur n'a pas répondu.\n");
@@ -350,7 +358,68 @@ int main() {
                 close(sock_cmd);
 
                 if (recu > 0) {
+                    if (check_erreur_serveur(buffer_rep, recu)) {
+                        continue;
+                    }
                     printf("Invitation pour le groupe %u refusée et supprimée.\n", req_act.id_groupe);
+                }
+            } else {
+                printf("Erreur de connexion au serveur.\n");
+            }
+        }
+
+        else if (strncmp(commande, "members ", 8) == 0) {
+            req_demander_membres_t req_mem;
+            req_mem.codereq = 10;
+            req_mem.id_client = mon_id;
+            
+            req_mem.id_groupe = (uint16_t)atoi(commande + 8);
+
+            uint8_t buffer_cmd[512];
+            size_t taille_msg = serialize_demander_membres(&req_mem, buffer_cmd);
+
+            int sock_cmd = init_client_tcp_ipv6(ADRESSE_LOCALE, PORT_SERVEUR);
+            if (sock_cmd >= 0) {
+                my_send(sock_cmd, buffer_cmd, taille_msg);
+                
+                uint8_t buffer_rep[2048]; 
+                int recu = recv(sock_cmd, buffer_rep, sizeof(buffer_rep), 0);
+                close(sock_cmd);
+
+                if (recu >= 4) {
+                    if (check_erreur_serveur(buffer_rep, recu)) {
+                        continue;
+                    }
+                    rep_demander_membres_t rep_mem;
+                    deserialize_demander_membres_resp(buffer_rep, &rep_mem);
+
+                    if (rep_mem.codereq == 11) {
+                        
+                        if (req_mem.id_groupe == 0) {
+                            printf("\n--- LISTE DE TOUS LES UTILISATEURS (%u) ---\n", rep_mem.nb);
+                        } else {
+                            printf("\n--- MEMBRES DU GROUPE %u (%u) ---\n", rep_mem.idg, rep_mem.nb);
+                        }
+                        
+                        if (rep_mem.nb == 0) {
+                            printf("Aucun membre trouvé.\n");
+                        } else {
+                            for (int i = 0; i < rep_mem.nb; i++) {
+                                // premier membre = admin du groupe
+                                if (i == 0 && req_mem.id_groupe != 0) {
+                                    printf(" -> [%u] %s (Admin)\n", rep_mem.id_membres[i], rep_mem.nom_membres[i]);
+                                } else {
+                                    printf(" -> [%u] %s\n", rep_mem.id_membres[i], rep_mem.nom_membres[i]);
+                                }
+                            }
+                        }
+                        printf("-------------------------------------------\n\n");
+                        
+                    } else {
+                        printf("Erreur : Le serveur a renvoyé un code inattendu (%u).\n", rep_mem.codereq);
+                    }
+                } else {
+                    printf("Le serveur n'a pas répondu correctement ou a fermé la connexion.\n");
                 }
             } else {
                 printf("Erreur de connexion au serveur.\n");

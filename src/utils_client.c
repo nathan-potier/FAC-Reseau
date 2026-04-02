@@ -56,3 +56,36 @@ void *ecoute_notifications_udp(void *arg) {
     }
     return NULL;
 }
+
+// Codereq = 31
+int check_erreur_serveur(const uint8_t *buffer, int recu) {
+    if (recu >= 2) {
+        uint16_t entete;
+        memcpy(&entete, buffer, 2);
+        entete = ntohs(entete);
+        
+        // CODEREQ = 31
+        if ((entete >> 11) == 31) {
+            uint16_t len = entete & 0x07FF;
+            
+            if (len > 0) {
+                char msg_erreur[2048];
+                memset(msg_erreur, 0, sizeof(msg_erreur));
+                
+                // On s'assure de ne pas lire en dehors de ce qu'on a réellement reçu
+                size_t a_lire;
+                if (len < (recu - 2)) {
+                    a_lire = len;
+                } else {
+                    a_lire = (recu - 2);
+                }
+                
+                printf("\nERREUR SERVEUR : %s\n", msg_erreur);
+            } else {
+                printf("\nERREUR SERVEUR : Requête refusée.\n");
+            }
+            return 1;
+        }
+    }
+    return 0;
+}

@@ -150,3 +150,49 @@ size_t serialize_action_invitation(const req_action_invitation_t *req, uint8_t *
     
     return 4;
 }
+
+size_t serialize_demander_membres(const req_demander_membres_t *req, uint8_t *buffer) {
+    // CODEREQ (5 bits) + ID_CLIENT (11 bits)
+    uint16_t premiere_ligne = (req->codereq << 11) | (req->id_client & 0x07FF);
+    premiere_ligne = htons(premiere_ligne);
+    memcpy(buffer, &premiere_ligne, 2);
+    
+    // IDG (11 bits) + ZEROS (5 bits)
+    uint16_t ligne2 = (req->id_groupe << 5) | 0; 
+    ligne2 = htons(ligne2);
+    memcpy(buffer + 2, &ligne2, 2);
+    
+    return 4;
+}
+
+void deserialize_demander_membres_resp(const uint8_t *buffer, rep_demander_membres_t *rep) {
+    //CODEREQ (5 bits) + IDG (11 bits)
+    uint16_t ligne1;
+    memcpy(&ligne1, buffer, 2);
+    ligne1 = ntohs(ligne1);
+    
+    rep->codereq = ligne1 >> 11;
+    rep->idg = ligne1 & 0x07FF;
+    
+    // NB : 16 bits
+    uint16_t ligne2;
+    memcpy(&ligne2, buffer + 2, 2);
+    rep->nb = ntohs(ligne2);
+    
+    size_t decalage = 4; // On a déjà lu 4 octets
+    
+    for (int i = 0; i < rep->nb; i++) {
+        // ID_membre (11 bits) + ZEROS (5 bits)
+        uint16_t ligne_id;
+        memcpy(&ligne_id, buffer + decalage, 2);
+        ligne_id = ntohs(ligne_id);
+        
+        rep->id_membres[i] = ligne_id >> 5;
+        decalage += 2;
+        
+        // Nom du membre (10 octets)
+        memset(rep->nom_membres[i], 0, 10);
+        memcpy(rep->nom_membres[i], buffer + decalage, 10);
+        decalage += 10;
+    }
+}

@@ -75,4 +75,20 @@ typedef struct {
     uint16_t zeros;       // 0 (sur 11 bits)
 } rep_inviter_t;
 
+// CODEREQ = 10 (Demander la liste des membres)
+typedef struct {
+    uint8_t codereq;      // 10 (sur 5 bits)
+    uint16_t id_client;   // 11 bits
+    uint16_t id_groupe;   // 11 bits
+} req_demander_membres_t;
+
+// CODEREQ = 11 serveur -> client
+typedef struct {
+    uint8_t codereq;               // 11
+    uint16_t idg;                  // 1 bits
+    uint16_t nb;                   // 6 bits
+    uint16_t id_membres[100];
+    char nom_membres[100][10];     // 10 octets chacun
+} rep_demander_membres_t;
+
 #endif
