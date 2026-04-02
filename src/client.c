@@ -193,6 +193,8 @@ int main() {
                     printf("ID du groupe : %u\n", rep_cg.idg);
                     printf("IP Multicast : %s\n", ip);
                     printf("Port Multicast : %u\n\n", rep_cg.portmdiff);
+
+                    rejoindre_multicast_ipv6(sock_udp, ip);
                     
                 } else {
                     printf("Erreur : Le serveur a renvoyé un code inattendu (%u).\n", rep_cg.codereq);
@@ -329,11 +331,11 @@ int main() {
                 int recu = recv(sock_cmd, buffer_rep, sizeof(buffer_rep), 0);
                 close(sock_cmd);
 
-                if (recu >= 22) { 
-                    if (check_erreur_serveur(buffer_rep, recu)) {
-                        continue;
-                    }
+                if (check_erreur_serveur(buffer_rep, recu)) {
+                    continue;
+                }
 
+                if (recu >= 22) { 
                     rep_action_invitation_acceptee_t rep_join;
                     memset(&rep_join, 0, sizeof(rep_join));
                     deserialize_action_invitation_acceptee_resp(buffer_rep, &rep_join);
