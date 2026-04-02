@@ -196,3 +196,43 @@ void deserialize_demander_membres_resp(const uint8_t *buffer, rep_demander_membr
         decalage += 10;
     }
 }
+
+void deserialize_action_invitation_acceptee_resp(const uint8_t *buffer, rep_action_invitation_acceptee_t *rep) {
+    // CODEREQ (5 bits) + IDG (11 bits)
+    uint16_t ligne1;
+    memcpy(&ligne1, buffer, 2);
+    ligne1 = ntohs(ligne1);
+    rep->codereq = ligne1 >> 11;
+    rep->idg = ligne1 & 0x07FF;
+
+    // PORTMDIFF (16 bits)
+    uint16_t port_net;
+    memcpy(&port_net, buffer + 2, 2);
+    rep->portmdiff = ntohs(port_net);
+
+    // IPMDIFF (16 octets)
+    memcpy(rep->ipmdiff, buffer + 4, 16);
+
+    // NB (16 bits)
+    uint16_t nb_net;
+    memcpy(&nb_net, buffer + 20, 2);
+    rep->nb = ntohs(nb_net);
+
+    // Boucle sur les membres (à partir de l'octet 22)
+    size_t decalage = 22; 
+    
+    for (int i = 0; i < rep->nb; i++) {
+        // ID_membre (11 bits) + ZEROS (5 bits)
+        uint16_t ligne_id;
+        memcpy(&ligne_id, buffer + decalage, 2);
+        ligne_id = ntohs(ligne_id);
+        
+        rep->id_membres[i] = ligne_id >> 5; // On enlève les 5 zéros
+        decalage += 2;
+        
+        // Nom du membre (10 octets réseaux)
+        memset(rep->nom_membres[i], 0, 10);
+        memcpy(rep->nom_membres[i], buffer + decalage, 9);
+        decalage += 10;
+    }
+}

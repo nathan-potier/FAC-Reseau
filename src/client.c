@@ -325,17 +325,42 @@ int main() {
             if (sock_cmd >= 0) {
                 my_send(sock_cmd, buffer_cmd, taille_msg);
                 
-                uint8_t buffer_rep[512];
+                uint8_t buffer_rep[2048]; 
                 int recu = recv(sock_cmd, buffer_rep, sizeof(buffer_rep), 0);
                 close(sock_cmd);
 
-                if (recu > 0) {
+                if (recu >= 22) { 
                     if (check_erreur_serveur(buffer_rep, recu)) {
                         continue;
                     }
-                    printf("Invitation acceptée pour le groupe %u !\n", req_act.id_groupe);
+
+                    rep_action_invitation_acceptee_t rep_join;
+                    memset(&rep_join, 0, sizeof(rep_join));
+                    deserialize_action_invitation_acceptee_resp(buffer_rep, &rep_join);
+                    
+                    if (rep_join.codereq == 9) {
+                        char ip_str[INET6_ADDRSTRLEN];
+                        inet_ntop(AF_INET6, rep_join.ipmdiff, ip_str, INET6_ADDRSTRLEN);
+                        
+                        printf("\nINVITATION ACCEPTÉE POUR LE GROUPE %u !\n", rep_join.idg);
+                        printf("IP Multicast : %s\n", ip_str);
+                        printf("Port Multicast : %u\n", rep_join.portmdiff);
+                        
+                        printf("\n--- MEMBRES PRÉSENTS (%u) ---\n", rep_join.nb);
+                        for (int i = 0; i < rep_join.nb; i++) {
+                            if (i == 0) {
+                                printf(" -> [%u] %s (Admin)\n", rep_join.id_membres[i], rep_join.nom_membres[i]);
+                            } else {
+                                printf(" -> [%u] %s\n", rep_join.id_membres[i], rep_join.nom_membres[i]);
+                            }
+                        }
+                        printf("-----------------------------\n\n");
+                        
+                    } else {
+                        printf("Erreur : Le serveur a répondu avec un code inattendu (%u).\n", rep_join.codereq);
+                    }
                 } else {
-                    printf("Le serveur n'a pas répondu.\n");
+                    printf("Erreur : Le serveur n'a pas répondu ou réponse incomplète.\n");
                 }
             } else {
                 printf("Erreur de connexion au serveur.\n");
