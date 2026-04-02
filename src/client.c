@@ -4,6 +4,7 @@
 #include <string.h>
 #include "utils.h"
 #include <unistd.h>
+#include <pthread.h>
 #include "serialisation_client.h" 
 #include "utils_client.h" 
 
@@ -154,9 +155,12 @@ int main() {
             req_cg.id = mon_id;
             
             char *nom_groupe = commande + 7; // A partir de l'espace arpes la commande
-            req_cg.len = strlen(nom_groupe);
-            if (req_cg.len > 255){
+            size_t taille_reelle = strlen(nom_groupe);
+            
+            if (taille_reelle > 255) {
                 req_cg.len = 255;
+            } else {
+                req_cg.len = (uint8_t)taille_reelle;
             }
             strncpy(req_cg.nomg, nom_groupe, req_cg.len);
 
