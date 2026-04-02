@@ -65,3 +65,43 @@ void serialize_creer_groupe_resp(const rep_creer_groupe_t *rep, uint8_t *buffer)
 
     memcpy(buffer + 4, rep->ipmdiff, 16);
 }
+
+// Désérialise la requête d'invitation (CODEREQ = 5)
+void deserialize_inviter_req(const uint8_t *buffer, req_inviter_t *req) {
+    uint16_t l1, l2;
+    memcpy(&l1, buffer, 2); l1 = ntohs(l1);
+    req->codereq = l1 >> 11;
+    req->id_client = l1 & 0x07FF;
+
+    memcpy(&l2, buffer + 2, 2); l2 = ntohs(l2);
+    req->id_groupe = l2 >> 5;
+    req->nb = l2 & 0x1F;
+
+    for(int i=0; i<req->nb; i++) {
+        uint16_t id;
+        memcpy(&id, buffer + 4 + (i*2), 2);
+        req->id_invites[i] = ntohs(id) >> 5;
+    }
+}
+
+// Désérialise la requête de listing des invitations (CODEREQ = 6)
+void deserialize_lister_invites_req(const uint8_t *buffer, req_lister_invites_t *req) {
+    uint16_t l1;
+    memcpy(&l1, buffer, 2); l1 = ntohs(l1);
+    req->codereq = l1 >> 11;
+    req->id_client = l1 & 0x07FF;
+}
+
+
+// Sérialise la réponse de listing des invitations (CODEREQ = 7)
+size_t serialize_lister_invites_resp(const rep_lister_invites_t *rep, uint8_t *buffer) {
+    uint16_t l1 = htons((rep->codereq << 11) | ((rep->nb & 0x1F) << 6));
+    memcpy(buffer, &l1, 2);
+    int offset = 2;
+    for (int i = 0; i < rep->nb; i++) {
+        uint16_t ligne_g = htons(rep->id_groupes[i] << 5);
+        memcpy(buffer + offset, &ligne_g, 2);
+        offset += 2;
+    }
+    return offset;
+}

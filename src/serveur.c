@@ -161,38 +161,31 @@ void *serve(void *arg) {
             my_recv(sockclient, buffer_reception + 2, 2); 
             uint16_t ligne2;
             memcpy(&ligne2, buffer_reception + 2, 2);
-            ligne2 = ntohs(ligne2);
-            uint16_t idg = ligne2 >> 5;           // ID du groupe 
-            uint8_t nb_invites = ligne2 & 0x1F;   // Nombre d'invités
-
+            uint8_t nb_invites = ntohs(ligne2) & 0x1F;
             my_recv(sockclient, buffer_reception + 4, nb_invites * 2);
 
+            req_inviter_t req;
+            deserialize_inviter_req(buffer_reception, &req);
+
             pthread_mutex_lock(&mutex_annuaire);
-            for (int i = 0; i < nb_invites; i++) {
+            for (int i = 0; i < req.nb; i++) {
                 if (nb_invitations < MAX_INVITATIONS) {
-                    uint16_t id_invite;
-                    memcpy(&id_invite, buffer_reception + 4 + (i * 2), 2);
-                    id_invite = ntohs(id_invite) >> 5;
-
                     // Ajout dans le tableau des invitations
-                    invitations[nb_invitations].id_invite = id_invite;
-                    invitations[nb_invitations].id_groupe = idg;
+                    invitations[nb_invitations].id_invite = req.id_invites[i];
+                    invitations[nb_invitations].id_groupe = req.id_groupe;
                     nb_invitations++;
-                    if (id_invite > 0 && id_invite <= nb_inscrits) {
-                        int index_client = id_invite - 1; 
 
+                    if (req.id_invites[i] > 0 && req.id_invites[i] <= nb_inscrits) {
+                        int index_client = req.id_invites[i] - 1; 
                         // CODEREQ(22) sur 5 bits + IDG sur 11 bits
-                        uint16_t notif_invit = htons((22 << 11) | (idg & 0x07FF));
-                        
+                        uint16_t notif_invit = htons((22 << 11) | (req.id_groupe & 0x07FF));
                         // paquet UDP vers le client 
                         envoyer_message_udp_ipv6(ADRESSE_LOCALE, annuaire[index_client].port_udp, (const uint8_t *)&notif_invit, 2); // vérifier si on envoie a la bonne personne 
                     }
-                    
                 }
             }
             pthread_mutex_unlock(&mutex_annuaire);
 
-            // Envoi de l'acquittement (CODEREQ = 24)
             uint16_t ack = htons(24 << 11);
             memcpy(buffer_envoi, &ack, 2);
             my_send(sockclient, buffer_envoi, 2);
@@ -200,56 +193,24 @@ void *serve(void *arg) {
         }
 
         case 6: { // Demander les invitations en attente
-            uint16_t id_client = entete & 0x07FF;
-            uint16_t ids_groupes_invites[MAX_GROUPES];
-            uint8_t nb_invits_client = 0;
+            req_lister_invites_t req;
+            deserialize_lister_invites_req(buffer_reception, &req);
+
+            rep_lister_invites_t rep;
+            rep.codereq = 7;
+            rep.nb = 0;
 
             pthread_mutex_lock(&mutex_annuaire);
-            // On cherche toutes les invitations pour ce client
             for (int i = 0; i < nb_invitations; i++) {
-                if (invitations[i].id_invite == id_client) {
-                    ids_groupes_invites[nb_invits_client] = invitations[i].id_groupe;
-                    nb_invits_client++;
-                }
-            }
-
-            // Préparation de la réponse (CODEREQ = 7)
-            uint16_t rep_ligne1 = htons((7 << 11) | ((nb_invits_client & 0x1F) << 6));
-            memcpy(buffer_envoi, &rep_ligne1, 2);
-            int offset = 2; // Curseur d'écriture dans le buffer
-
-            for (int i = 0; i < nb_invits_client; i++) {
-                uint16_t idg = ids_groupes_invites[i];
-                
-                // Recherche des infos du groupe
-                for (int j = 0; j < nb_groupes; j++) {
-                    if (groupes[j].id_groupe == idg) {
-                        uint8_t len = strlen(groupes[j].nom);
-                        uint16_t ligne_g = htons((idg << 5) | (len & 0x1F));
-                        memcpy(buffer_envoi + offset, &ligne_g, 2);
-                        offset += 2;
-
-                        // Nom du groupe
-                        memcpy(buffer_envoi + offset, groupes[j].nom, len);
-                        offset += len;
-
-                        // Recherche du pseudo de l'admin du groupe
-                        char pseudo_admin[10] = {0};
-                        for (int k = 0; k < nb_inscrits; k++) {
-                            if (annuaire[k].id == groupes[j].id_admin) {
-                                memcpy(pseudo_admin, annuaire[k].pseudo, 10);
-                                break;
-                            }
-                        }
-                        memcpy(buffer_envoi + offset, pseudo_admin, 10);
-                        offset += 10;
-                        break; // On a trouvé le groupe, on passe au suivant
-                    }
+                if (invitations[i].id_invite == req.id_client) {
+                    rep.id_groupes[rep.nb] = invitations[i].id_groupe;
+                    rep.nb++;
                 }
             }
             pthread_mutex_unlock(&mutex_annuaire);
 
-            my_send(sockclient, buffer_envoi, offset); 
+            size_t taille = serialize_lister_invites_resp(&rep, buffer_envoi);
+            my_send(sockclient, buffer_envoi, taille);
             break;
         }
 
