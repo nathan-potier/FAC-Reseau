@@ -140,3 +140,33 @@ size_t serialize_accepter_invitation_resp(const rep_action_invitation_acceptee_t
     }
     return offset;
 }
+
+// Désérialise la requête de listing des membres d'un groupe (CODEREQ = 10)
+void deserialize_lister_membres_req(const uint8_t *buffer, req_demander_membres_t *req) {
+    uint16_t l1, l2;
+    memcpy(&l1, buffer, 2); l1 = ntohs(l1);
+    req->codereq = l1 >> 11;
+    req->id_client = l1 & 0x07FF;
+
+    memcpy(&l2, buffer + 2, 2); l2 = ntohs(l2);
+    req->id_groupe = l2 >> 5;
+}
+
+// Sérialise la réponse de listing des membres d'un groupe (CODEREQ = 11)
+size_t serialize_lister_membres_resp(const rep_demander_membres_t *rep, uint8_t *buffer) {
+    uint16_t l1 = htons((rep->codereq << 11) | (rep->idg & 0x07FF));
+    memcpy(buffer, &l1, 2);
+    
+    uint16_t nb = htons(rep->nb);
+    memcpy(buffer + 2, &nb, 2);
+    
+    int offset = 4;
+    for(int i=0; i < rep->nb; i++) {
+        uint16_t id = htons(rep->id_membres[i] << 5);
+        memcpy(buffer + offset, &id, 2);
+        offset += 2;
+        memcpy(buffer + offset, rep->nom_membres[i], 10);
+        offset += 10;
+    }
+    return offset;
+}

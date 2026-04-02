@@ -306,6 +306,54 @@ void *serve(void *arg) {
             break;
         }
 
+        case 10: { // Demander la liste des membres d'un groupe ou de tous les utilisateurs
+            my_recv(sockclient, buffer_reception + 2, 2); 
+            req_demander_membres_t req;
+            deserialize_lister_membres_req(buffer_reception, &req);
+
+            rep_demander_membres_t rep;
+            rep.codereq = 11;
+            rep.idg = req.id_groupe;
+            rep.nb = 0;
+
+            pthread_mutex_lock(&mutex_annuaire);
+
+            if (req.id_groupe == 0) { // Tous les utilisateurs inscrits
+                rep.nb = nb_inscrits;
+                for (int i = 0; i < nb_inscrits; i++) {
+                    rep.id_membres[i] = annuaire[i].id;
+                    strncpy(rep.nom_membres[i], annuaire[i].pseudo, 10);
+                }
+            } else { // Membres d'un groupe spécifique
+                int idx_groupe = -1;
+                for (int i = 0; i < nb_groupes; i++) {
+                    if (groupes[i].id_groupe == req.id_groupe) {
+                        idx_groupe = i;
+                        break;
+                    }
+                }
+                if (idx_groupe != -1) {
+                    rep.nb = groupes[idx_groupe].nb_membres;
+                    for (int i = 0; i < groupes[idx_groupe].nb_membres; i++) {
+                        rep.id_membres[i] = groupes[idx_groupe].membres[i];
+                        memset(rep.nom_membres[i], 0, 10);
+                        // Cherche le pseudo correspondant à l'ID
+                        for (int j = 0; j < nb_inscrits; j++) {
+                            if (annuaire[j].id == rep.id_membres[i]) {
+                                strncpy(rep.nom_membres[i], annuaire[j].pseudo, 10);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            pthread_mutex_unlock(&mutex_annuaire);
+
+            size_t taille = serialize_lister_membres_resp(&rep, buffer_envoi);
+            my_send(sockclient, buffer_envoi, taille);
+            break;
+        }
+
 
         default:
             printf("Requête non reconnue (CodeReq: %d)\n", codereq);

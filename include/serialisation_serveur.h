@@ -22,5 +22,8 @@ size_t serialize_lister_invites_resp(const rep_lister_invites_t *rep, uint8_t *b
 void deserialize_action_invitation_req(const uint8_t *buffer, req_action_invitation_t *req);
 size_t serialize_accepter_invitation_resp(const rep_action_invitation_acceptee_t *rep, uint8_t *buffer);
 
+void deserialize_lister_membres_req(const uint8_t *buffer, req_demander_membres_t *req);
+size_t serialize_lister_membres_resp(const rep_demander_membres_t *rep, uint8_t *buffer);
+
 
 #endif
