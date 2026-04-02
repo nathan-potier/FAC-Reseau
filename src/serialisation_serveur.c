@@ -105,3 +105,38 @@ size_t serialize_lister_invites_resp(const rep_lister_invites_t *rep, uint8_t *b
     }
     return offset;
 }
+
+// Désérialise la requête d'action sur invitation (Accepter, Refuser, Quitter) (CODEREQ = 8)
+void deserialize_action_invitation_req(const uint8_t *buffer, req_action_invitation_t *req) {
+    uint16_t l1, l2;
+    memcpy(&l1, buffer, 2); l1 = ntohs(l1);
+    req->codereq = l1 >> 11;
+    req->id_client = l1 & 0x07FF;
+
+    memcpy(&l2, buffer + 2, 2); l2 = ntohs(l2);
+    req->id_groupe = l2 >> 5;
+    req->an = (l2 >> 3) & 0x03;
+}
+
+// Désérialise la réponse à une invitation (CODEREQ = 24)
+size_t serialize_accepter_invitation_resp(const rep_action_invitation_acceptee_t *rep, uint8_t *buffer) {
+    uint16_t l1 = htons((rep->codereq << 11) | (rep->idg & 0x07FF));
+    memcpy(buffer, &l1, 2);
+    
+    uint16_t port = htons(rep->portmdiff);
+    memcpy(buffer + 2, &port, 2);
+    memcpy(buffer + 4, rep->ipmdiff, 16);
+    
+    uint16_t nb = htons(rep->nb);
+    memcpy(buffer + 20, &nb, 2);
+    
+    int offset = 22;
+    for(int i=0; i < rep->nb; i++) {
+        uint16_t id = htons(rep->id_membres[i] << 5);
+        memcpy(buffer + offset, &id, 2);
+        offset += 2;
+        memcpy(buffer + offset, rep->nom_membres[i], 10);
+        offset += 10;
+    }
+    return offset;
+}
