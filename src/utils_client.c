@@ -79,6 +79,7 @@ int check_erreur_serveur(const uint8_t *buffer, int recu) {
                 } else {
                     a_lire = (recu - 2);
                 }
+                memcpy(msg_erreur, buffer + 2, a_lire);
                 
                 printf("\nERREUR SERVEUR : %s\n", msg_erreur);
             } else {
