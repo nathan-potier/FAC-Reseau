@@ -69,6 +69,17 @@ typedef struct {
     uint8_t an;           // 1 = Accepte, 0 = Refuse, 2 = Quitte sur 2 bits
 } req_action_invitation_t;
 
+// Réponse du serveur -> client suite à une invitation acceptée (CODEREQ = 9)
+typedef struct {
+    uint8_t codereq;               // 5 bits
+    uint16_t idg;                  // 11 bits
+    uint16_t portmdiff;            // 16 bits
+    uint8_t ipmdiff[16];           // 16 octets
+    uint16_t nb;                   // 16 bits
+    uint16_t id_membres[100];      // 11 bits chacun
+    char nom_membres[100][10];     // Liste des pseudos (10 octets)
+} rep_action_invitation_acceptee_t;
+
 // Réponse du serveur -> client suite à une invitation (CODEREQ = 24)
 typedef struct {
     uint8_t codereq;      // 24 (sur 5 bits)
