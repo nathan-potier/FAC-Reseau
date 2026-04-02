@@ -22,12 +22,10 @@ void *ecoute_notifications_udp(void *arg) {
 
             
             switch(codereq) {
-                /*
                 case 18: // nv billet ou réponse posté dans un groupe (CODEREQ = 18)
                     printf("\n\nNouveau message sur le fil de discussion groupe ID : %u!\n> ", idg);
                     fflush(stdout);
                     break;
-                */
                 case 19: // Quelqu'un a rejoint le groupe (CODEREQ = 19)
                     printf("\n\nUn nouvel utilisateur a rejoint le groupe ID : %u !\n> ", idg);
                     fflush(stdout);
@@ -49,12 +47,10 @@ void *ecoute_notifications_udp(void *arg) {
                     fflush(stdout);
                     break;
 
-                /*
                 case 23: // Quelqu'un a lu un de tes billets (CODEREQ = 23)
                     printf("\n\nQuelqu'un a récupéré/lu ton billet ! groupe ID : %u \n> ", idg);
                     fflush(stdout);
                     break;
-                */
             }
         }
     }
