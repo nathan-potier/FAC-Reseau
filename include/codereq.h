@@ -107,7 +107,7 @@ typedef struct {
     uint8_t codereq;      // 5 bits
     uint16_t id_client;   // 11 bits
     uint16_t id_groupe;   // 11 bits
-    uint8_t len;          // Longueur du billet
+    uint16_t len;          // Longueur du billet
     char data[2048];       // Contenu du billet
 } req_poster_billet_t;
 

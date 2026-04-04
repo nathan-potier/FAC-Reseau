@@ -108,22 +108,41 @@ int envoyer_requete_tcp(const uint8_t *buffer_cmd, size_t taille_msg, uint8_t *b
 
     my_send(sock_cmd, buffer_cmd, taille_msg);
 
-    int recu;
-    if (taille_exacte > 0){
-        recu = my_recv(sock_cmd, buffer_rep, taille_exacte);
-    }else{
-        recu = recv(sock_cmd, buffer_rep, taille_max, 0);
-    }
-    
-    close(sock_cmd);
-
-    if (recu > 0) {
-        if (check_erreur_serveur(buffer_rep, recu)) return -1; 
-        return recu;
-    } else {
+    // on lit l'en-tête
+    int recu = my_recv(sock_cmd, buffer_rep, 2);
+    if (recu != 2) {
+        close(sock_cmd);
         printf("Erreur de réception ou serveur déconnecté.\n");
         return -1;
     }
+
+    uint16_t entete;
+    memcpy(&entete, buffer_rep, 2);
+    entete = ntohs(entete);
+    uint8_t codereq = entete >> 11;
+
+    // Si c'est une erreur (CODEREQ 31)
+    if (codereq == 31) {
+        uint16_t len = entete & 0x07FF; // La taille exacte du message d'erreur
+        if (len > 0 && len <= (taille_max - 2)) {
+            int recu_err = my_recv(sock_cmd, buffer_rep + 2, len);
+            if (recu_err > 0) recu += recu_err;
+        }
+        close(sock_cmd);
+        check_erreur_serveur(buffer_rep, recu);
+        return -1; 
+    }
+
+    if (taille_exacte > 2) {
+        int recu_suite = my_recv(sock_cmd, buffer_rep + 2, taille_exacte - 2);
+        if (recu_suite > 0) recu += recu_suite;
+    } else if (taille_exacte == 0) {
+        int recu_suite = recv(sock_cmd, buffer_rep + 2, taille_max - 2, 0);
+        if (recu_suite > 0) recu += recu_suite;
+    }
+    
+    close(sock_cmd);
+    return recu;
 }
 
 void abonner_groupe_multicast(uint16_t port, const char *ip_str, const char *nom_groupe) {
