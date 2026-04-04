@@ -5,6 +5,9 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <string.h>
+#include <pthread.h>
+
+#include "utils.h"
 #include "utils_client.h"
 #include "serialisation_client.h"
 
@@ -137,7 +140,11 @@ void abonner_groupe_multicast(uint16_t port, const char *ip_str, const char *nom
         pthread_create(&thread_multi, NULL, ecoute_notifications_udp, arg_sock_multi);
         pthread_detach(thread_multi);
         
-        printf("Écoute Multicast activée pour le groupe \"%s\" sur le port %u.\n", nom_groupe, port);
+        if (nom_groupe != NULL) {
+            printf("Écoute Multicast activée pour le groupe \"%s\" sur le port %u.\n", nom_groupe, port);
+        } else {
+            printf("Écoute Multicast activée pour ce groupe sur le port %u.\n", port);
+        }
     } else {
         printf("Erreur lors de la création de l'écoute Multicast.\n");
     }
