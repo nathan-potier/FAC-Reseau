@@ -45,4 +45,9 @@ size_t serialize_demander_membres(const req_demander_membres_t *req, uint8_t *bu
 // CODEREQ = 11
 void deserialize_demander_membres_resp(const uint8_t *buffer, rep_demander_membres_t *rep);
 
+// CODEREQ = 12
+size_t serialize_poster_billet(const req_poster_billet_t *req, uint8_t *buffer);
+
+// CODEREQ = 13
+void deserialize_poster_billet_resp(const uint8_t *buffer, rep_poster_billet_t *rep);
 #endif
