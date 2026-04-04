@@ -283,3 +283,15 @@ void cmd_join(char *id_groupe_str, uint16_t mon_id) {
         printf("Erreur : Le serveur n'a pas répondu ou réponse incomplète.\n");
     }
 }
+
+void cmd_decline(char *id_groupe_str, uint16_t mon_id) {
+    req_action_invitation_t req_act = { .codereq = 8, .id_client = mon_id, .an = 0 };
+    req_act.id_groupe = (uint16_t)atoi(id_groupe_str);
+
+    uint8_t buffer_cmd[512], buffer_rep[512];
+    size_t taille_msg = serialize_action_invitation(&req_act, buffer_cmd);
+
+    if (envoyer_requete_tcp(buffer_cmd, taille_msg, buffer_rep, sizeof(buffer_rep), 0) > 0) {
+        printf("Invitation pour le groupe %u refusée et supprimée.\n", req_act.id_groupe);
+    }
+}
