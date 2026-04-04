@@ -178,3 +178,42 @@ void cmd_create(char *nom_groupe, uint16_t mon_id) {
         }
     }
 }
+
+void cmd_invite(char *args, uint16_t mon_id) {
+    req_inviter_t req_inv = { .codereq = 5, .id_client = mon_id, .nb = 0 };
+    char *ptr = args, *endptr;
+
+    long id_groupe = strtol(ptr, &endptr, 10);
+    if (ptr == endptr) {
+        printf("Erreur de format. Usage: invite <id_groupe> <id_dest1> [id_dest2]...\n");
+        return;
+    }
+
+    req_inv.id_groupe = (uint16_t)id_groupe;
+    ptr = endptr; // decalage jusqu'à apres le numero du groupe
+    
+    // on lit tout les invités (max 31) jusqu'à la fin
+    while (*ptr != '\0' && req_inv.nb < 31) {
+        long id_invite = strtol(ptr, &endptr, 10);
+        if (ptr == endptr) break;
+        req_inv.id_invites[req_inv.nb++] = (uint16_t)id_invite;
+        ptr = endptr;
+    }
+
+    if (req_inv.nb > 0) {
+        uint8_t buffer_cmd[512], buffer_rep[512];
+        size_t taille_msg = serialize_inviter(&req_inv, buffer_cmd);
+
+        printf("Requête d'invitation envoyée au serveur.\n");
+        if (envoyer_requete_tcp(buffer_cmd, taille_msg, buffer_rep, sizeof(buffer_rep), 2) == 2) {
+            rep_inviter_t rep_inv_resp;
+            deserialize_inviter_resp(buffer_rep, &rep_inv_resp);
+            
+            if (rep_inv_resp.codereq == 24) {
+                printf("%d invitation(s) envoyée(s) pour le groupe %u !\n", req_inv.nb, req_inv.id_groupe);
+            } else {
+                printf("Erreur : Le serveur a répondu avec le code %u (attendu: 24).\n", rep_inv_resp.codereq);
+            }
+        }
+    }
+}
