@@ -8,9 +8,6 @@
 #include "serialisation_client.h" 
 #include "utils_client.h" 
 
-#define ADRESSE_LOCALE "::1"
-#define PORT_SERVEUR 8080
-
 int main() {
     uint16_t mon_id = 0;
     uint16_t mon_port_udp = 0;
@@ -69,9 +66,6 @@ int main() {
 
         } else if (strncmp(commande, "members ", 8) == 0) {
             cmd_members(commande + 8, mon_id);
-
-        } else if (strlen(commande) > 0) {
-            printf("Commande inconnue.\n");
         }else{
             if (strlen(commande) > 0) printf("Commande inconnue.\n");
         }
