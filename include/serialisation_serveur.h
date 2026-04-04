@@ -14,4 +14,16 @@ void deserialize_creer_groupe_req(const uint8_t *buffer, req_creer_groupe_t *req
 // Pour envoyer CODEREQ=4 au client
 void serialize_creer_groupe_resp(const rep_creer_groupe_t *rep, uint8_t *buffer);
 
+// CodeReq 6
+void deserialize_inviter_req(const uint8_t *buffer, req_inviter_t *req);
+void deserialize_lister_invites_req(const uint8_t *buffer, req_lister_invites_t *req);
+size_t serialize_lister_invites_resp(const rep_lister_invites_t *rep, uint8_t *buffer);
+
+void deserialize_action_invitation_req(const uint8_t *buffer, req_action_invitation_t *req);
+size_t serialize_accepter_invitation_resp(const rep_action_invitation_acceptee_t *rep, uint8_t *buffer);
+
+void deserialize_lister_membres_req(const uint8_t *buffer, req_demander_membres_t *req);
+size_t serialize_lister_membres_resp(const rep_demander_membres_t *rep, uint8_t *buffer);
+
+
 #endif

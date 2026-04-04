@@ -50,7 +50,7 @@ typedef struct {
 
 // CODEREQ = 6 (Demander les invitations)
 typedef struct {
-    uint8_t codereq;      // 5
+    uint8_t codereq;      // 6
     uint16_t id_client;   // 11 bits
 } req_lister_invites_t;
 
