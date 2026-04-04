@@ -7,6 +7,9 @@
 #include <string.h>
 #include "utils_client.h"
 
+#define ADRESSE_LOCALE "::1"
+#define PORT_SERVEUR 8080
+
 void *ecoute_notifications_udp(void *arg) {
     int sock_udp = *((int *)arg);
     uint8_t buffer[512];
@@ -90,4 +93,51 @@ int check_erreur_serveur(const uint8_t *buffer, int recu) {
         }
     }
     return 0;
+}
+
+int envoyer_requete_tcp(const uint8_t *buffer_cmd, size_t taille_msg, uint8_t *buffer_rep, size_t taille_max, int taille_exacte) {
+    int sock_cmd = init_client_tcp_ipv6(ADRESSE_LOCALE, PORT_SERVEUR);
+    if (sock_cmd < 0) {
+        printf("Erreur de connexion au serveur.\n");
+        return -1;
+    }
+
+    my_send(sock_cmd, buffer_cmd, taille_msg);
+
+    int recu;
+    if (taille_exacte > 0){
+        recu = my_recv(sock_cmd, buffer_rep, taille_exacte);
+    }else{
+        recu = recv(sock_cmd, buffer_rep, taille_max, 0);
+    }
+    
+    close(sock_cmd);
+
+    if (recu > 0) {
+        if (check_erreur_serveur(buffer_rep, recu)) return -1; 
+        return recu;
+    } else {
+        printf("Erreur de réception ou serveur déconnecté.\n");
+        return -1;
+    }
+}
+
+void abonner_groupe_multicast(uint16_t port, const char *ip_str, const char *nom_groupe) {
+    // Nouvelle socket sur le port du groupe
+    int sock_multi = init_ecoute_udp_ipv6(port);
+    if (sock_multi >= 0) {
+        rejoindre_multicast_ipv6(sock_multi, ip_str);
+        
+        // On lance un thread indépendant pour écouter ce groupe
+        int *arg_sock_multi = malloc(sizeof(int));
+        *arg_sock_multi = sock_multi;
+        
+        pthread_t thread_multi;
+        pthread_create(&thread_multi, NULL, ecoute_notifications_udp, arg_sock_multi);
+        pthread_detach(thread_multi);
+        
+        printf("Écoute Multicast activée pour le groupe \"%s\" sur le port %u.\n", nom_groupe, port);
+    } else {
+        printf("Erreur lors de la création de l'écoute Multicast.\n");
+    }
 }
