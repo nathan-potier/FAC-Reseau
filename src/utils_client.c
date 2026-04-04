@@ -295,3 +295,41 @@ void cmd_decline(char *id_groupe_str, uint16_t mon_id) {
         printf("Invitation pour le groupe %u refusée et supprimée.\n", req_act.id_groupe);
     }
 }
+
+void cmd_members(char *id_groupe_str, uint16_t mon_id) {
+    req_demander_membres_t req_mem = { .codereq = 10, .id_client = mon_id };
+    req_mem.id_groupe = (uint16_t)atoi(id_groupe_str);
+
+    uint8_t buffer_cmd[512], buffer_rep[2048];
+    size_t taille_msg = serialize_demander_membres(&req_mem, buffer_cmd);
+
+    int recu = envoyer_requete_tcp(buffer_cmd, taille_msg, buffer_rep, sizeof(buffer_rep), 0);
+    if (recu >= 4) {
+        rep_demander_membres_t rep_mem;
+        deserialize_demander_membres_resp(buffer_rep, &rep_mem);
+
+        if (rep_mem.codereq == 11) {
+            if (req_mem.id_groupe == 0) {
+                printf("\n--- LISTE DE TOUS LES UTILISATEURS (%u) ---\n", rep_mem.nb);
+            } else {
+                printf("\n--- MEMBRES DU GROUPE %u (%u) ---\n", rep_mem.idg, rep_mem.nb);
+            }
+            
+            if (rep_mem.nb == 0) {
+                printf("Aucun membre trouvé.\n");
+            } else {
+                for (int i = 0; i < rep_mem.nb; i++) {
+                    // premier membre = admin du groupe
+                    if (i == 0 && req_mem.id_groupe != 0) {
+                        printf(" -> [%u] %s (Admin)\n", rep_mem.id_membres[i], rep_mem.nom_membres[i]);
+                    } else {
+                        printf(" -> [%u] %s\n", rep_mem.id_membres[i], rep_mem.nom_membres[i]);
+                    }
+                }
+            }
+            printf("-------------------------------------------\n\n");
+        } else {
+            printf("Erreur : Le serveur a renvoyé un code inattendu (%u).\n", rep_mem.codereq);
+        }
+    }
+}
