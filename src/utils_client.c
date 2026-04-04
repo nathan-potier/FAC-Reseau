@@ -205,6 +205,7 @@ void cmd_invite(char *args, uint16_t mon_id) {
         size_t taille_msg = serialize_inviter(&req_inv, buffer_cmd);
 
         printf("Requête d'invitation envoyée au serveur.\n");
+
         if (envoyer_requete_tcp(buffer_cmd, taille_msg, buffer_rep, sizeof(buffer_rep), 2) == 2) {
             rep_inviter_t rep_inv_resp;
             deserialize_inviter_resp(buffer_rep, &rep_inv_resp);
@@ -240,5 +241,45 @@ void cmd_li(uint16_t mon_id) {
         } else {
             printf("Erreur serveur (Code: %u)\n", rep_li.codereq);
         }
+    }
+}
+
+void cmd_join(char *id_groupe_str, uint16_t mon_id) {
+    req_action_invitation_t req_act = { .codereq = 8, .id_client = mon_id, .an = 1 };
+    req_act.id_groupe = (uint16_t)atoi(id_groupe_str);
+
+    uint8_t buffer_cmd[512], buffer_rep[2048];
+    size_t taille_msg = serialize_action_invitation(&req_act, buffer_cmd);
+
+    int recu = envoyer_requete_tcp(buffer_cmd, taille_msg, buffer_rep, sizeof(buffer_rep), 0);
+    if (recu >= 22) {
+        rep_action_invitation_acceptee_t rep_join;
+        memset(&rep_join, 0, sizeof(rep_join));
+        deserialize_action_invitation_acceptee_resp(buffer_rep, &rep_join);
+        
+        if (rep_join.codereq == 9) {
+            char ip_str[INET6_ADDRSTRLEN];
+            inet_ntop(AF_INET6, rep_join.ipmdiff, ip_str, INET6_ADDRSTRLEN);
+            
+            printf("\nINVITATION ACCEPTÉE POUR LE GROUPE %u !\n", rep_join.idg);
+            printf("IP Multicast : %s\n", ip_str);
+            printf("Port Multicast : %u\n", rep_join.portmdiff);
+            
+            printf("\n--- MEMBRES PRÉSENTS (%u) ---\n", rep_join.nb);
+            for (int i = 0; i < rep_join.nb; i++) {
+                if (i == 0) {
+                    printf(" -> [%u] %s (Admin)\n", rep_join.id_membres[i], rep_join.nom_membres[i]);
+                } else {
+                    printf(" -> [%u] %s\n", rep_join.id_membres[i], rep_join.nom_membres[i]);
+                }
+            }
+            printf("-----------------------------\n\n");
+
+            abonner_groupe_multicast(rep_join.portmdiff, ip_str, NULL);
+        } else {
+            printf("Erreur : Le serveur a répondu avec un code inattendu (%u).\n", rep_join.codereq);
+        }
+    } else if (recu > 0) {
+        printf("Erreur : Le serveur n'a pas répondu ou réponse incomplète.\n");
     }
 }
