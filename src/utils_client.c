@@ -333,3 +333,69 @@ void cmd_members(char *id_groupe_str, uint16_t mon_id) {
         }
     }
 }
+
+int initialiser_profil(uint16_t *mon_id, uint16_t *mon_port_udp, char *cle_serveur) {
+    //Enregistrement des infos pour la reconnexion
+    FILE *fichier = fopen("mon_profil.txt", "rb");
+    if (fichier != NULL) {
+        rep_inscription_t profil;
+        if (fread(&profil, sizeof(rep_inscription_t), 1, fichier) == 1) {
+            *mon_id = profil.id; // sauvegarde ID
+            *mon_port_udp = profil.portudp;
+            memcpy(cle_serveur, profil.cle, 113);
+            printf("[INFO] Profil local trouvé ! Reconnexion automatique...\n");
+            printf("Bon retour ! Ton ID est %u et ton port UDP est %u.\n", *mon_id, *mon_port_udp);
+            fclose(fichier);
+            return 1;
+        }
+        fclose(fichier);
+    }
+
+    char pseudo[100];
+    printf("Entrez votre pseudo (10 caractères max) : ");
+    if (fgets(pseudo, sizeof(pseudo), stdin) == NULL || pseudo[0] == '\n') {
+        printf("Erreur : Le pseudo ne peut pas être vide.\n");
+        return 0;
+    }
+    pseudo[strcspn(pseudo, "\n")] = 0;
+
+    req_inscription_t req;
+    // Met tout a 0 donc Clé vide (sans sécurité)
+    memset(&req, 0, sizeof(req));
+    req.codereq = 1;
+    strncpy(req.nom, pseudo, 10);
+
+    uint8_t buffer_cmd[REQ_INSCRIPTION_SIZE], buffer_rep[RESP_INSCRIPTION_SIZE];
+    serialize_inscription_req(&req, buffer_cmd);
+
+    int sock = init_client_tcp_ipv6(ADRESSE_LOCALE, PORT_SERVEUR);
+    if (sock < 0) {
+        printf("Erreur de connexion au serveur.\n");
+        return 0;
+    } 
+    
+    my_send(sock, buffer_cmd, REQ_INSCRIPTION_SIZE);
+    my_recv(sock, buffer_rep, RESP_INSCRIPTION_SIZE);
+    close(sock);
+
+    rep_inscription_t rep;
+    deserialize_inscription_resp(buffer_rep, &rep);
+
+    if (rep.codereq == 2) {
+        printf("INSCRIPTION RÉUSSIE !\nID : %u\nPort UDP : %u\n", rep.id, rep.portudp);
+        *mon_id = rep.id;
+        *mon_port_udp = rep.portudp;
+        memcpy(cle_serveur, rep.cle, 113);
+
+        fichier = fopen("mon_profil.txt", "wb");
+        if (fichier) {
+            fwrite(&rep, sizeof(rep_inscription_t), 1, fichier);
+            fclose(fichier);
+            printf("[INFO] Profil sauvegardé localement !\n");
+        }
+        return 1;
+    } else {
+        printf("\n[Erreur] Le serveur a refusé l'inscription (Code retour : %u).\n", rep.codereq);
+        return 0;
+    }
+}
