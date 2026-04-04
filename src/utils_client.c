@@ -6,6 +6,7 @@
 #include <arpa/inet.h>
 #include <string.h>
 #include "utils_client.h"
+#include "serialisation_client.h"
 
 #define ADRESSE_LOCALE "::1"
 #define PORT_SERVEUR 8080
@@ -139,5 +140,41 @@ void abonner_groupe_multicast(uint16_t port, const char *ip_str, const char *nom
         printf("Écoute Multicast activée pour le groupe \"%s\" sur le port %u.\n", nom_groupe, port);
     } else {
         printf("Erreur lors de la création de l'écoute Multicast.\n");
+    }
+}
+
+void cmd_create(char *nom_groupe, uint16_t mon_id) {
+    req_creer_groupe_t req_cg = { .codereq = 3, .id = mon_id };
+    
+    size_t taille_reelle = strlen(nom_groupe);
+    if (taille_reelle > 255) {
+        req_cg.len = 255;
+    } else {
+        req_cg.len = (uint8_t)taille_reelle;
+    }
+    strncpy(req_cg.nomg, nom_groupe, req_cg.len);
+
+    uint8_t buffer_cmd[512], buffer_rep[512];
+    size_t taille_msg = serialize_creer_groupe(&req_cg, buffer_cmd);
+
+    printf("Requete de creation du groupe \"%s\" envoyé.\n", nom_groupe);
+
+    if (envoyer_requete_tcp(buffer_cmd, taille_msg, buffer_rep, sizeof(buffer_rep), RESP_CREER_GROUPE_SIZE) > 0) {
+        rep_creer_groupe_t rep_cg;
+        deserialize_creer_groupe_resp(buffer_rep, &rep_cg);
+
+        if (rep_cg.codereq == 4) {
+            char ip[INET6_ADDRSTRLEN]; // Transforme l'IP binaire en texte
+            inet_ntop(AF_INET6, rep_cg.ipmdiff, ip, INET6_ADDRSTRLEN);
+
+            printf("\nGROUPE \"%s\" CRÉÉ AVEC SUCCÈS !\n", nom_groupe);
+            printf("ID du groupe : %u\n", rep_cg.idg);
+            printf("IP Multicast : %s\n", ip);
+            printf("Port Multicast : %u\n\n", rep_cg.portmdiff);
+
+            abonner_groupe_multicast(rep_cg.portmdiff, ip, nom_groupe);
+        } else {
+            printf("Erreur : Le serveur a renvoyé un code inattendu (%u).\n", rep_cg.codereq);
+        }
     }
 }
