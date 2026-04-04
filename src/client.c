@@ -194,7 +194,23 @@ int main() {
                     printf("IP Multicast : %s\n", ip);
                     printf("Port Multicast : %u\n\n", rep_cg.portmdiff);
 
-                    rejoindre_multicast_ipv6(sock_udp, ip);
+                    // Nouvelle socket sur le port du groupe
+                    int sock_multi = init_ecoute_udp_ipv6(rep_cg.portmdiff);
+                    if (sock_multi >= 0) {
+                        rejoindre_multicast_ipv6(sock_multi, ip);
+                        
+                        // On lance un thread indépendant pour écouter ce groupe
+                        int *arg_sock_multi = malloc(sizeof(int));
+                        *arg_sock_multi = sock_multi;
+                        
+                        pthread_t thread_multi;
+                        pthread_create(&thread_multi, NULL, ecoute_notifications_udp, arg_sock_multi);
+                        pthread_detach(thread_multi);
+                        
+                        printf("Écoute Multicast activée pour le groupe \"%s\" sur le port %u.\n",nom_groupe, rep_cg.portmdiff);
+                    } else {
+                        printf("Erreur lors de la création de l'écoute Multicast.\n");
+                    }
                     
                 } else {
                     printf("Erreur : Le serveur a renvoyé un code inattendu (%u).\n", rep_cg.codereq);
@@ -357,6 +373,22 @@ int main() {
                             }
                         }
                         printf("-----------------------------\n\n");
+
+                        int sock_multi = init_ecoute_udp_ipv6(rep_join.portmdiff);
+                        if (sock_multi >= 0) {
+                            rejoindre_multicast_ipv6(sock_multi, ip_str);
+                            
+                            int *arg_sock_multi = malloc(sizeof(int));
+                            *arg_sock_multi = sock_multi;
+                            
+                            pthread_t thread_multi;
+                            pthread_create(&thread_multi, NULL, ecoute_notifications_udp, arg_sock_multi);
+                            pthread_detach(thread_multi); 
+                            
+                            printf("Écoute Multicast activée pour le groupe sur le port %u.\n", rep_join.portmdiff);
+                        } else {
+                            printf("Erreur lors de la création de l'écoute Multicast.\n");
+                        }
                         
                     } else {
                         printf("Erreur : Le serveur a répondu avec un code inattendu (%u).\n", rep_join.codereq);
