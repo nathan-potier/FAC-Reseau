@@ -37,6 +37,7 @@ int main() {
     printf("join <id_groupe>\n");
     printf("decline <id_groupe>\n");
     printf("members <id_groupe> (0 pour tous)\n");
+    printf("post <id_groupe> <message>\n");
     printf("quit\n");
     printf("============\n\n");
 
@@ -66,6 +67,8 @@ int main() {
 
         } else if (strncmp(commande, "members ", 8) == 0) {
             cmd_members(commande + 8, mon_id);
+        } else if (strncmp(commande, "post ", 5) == 0) {
+            cmd_post(commande + 5, mon_id);
         }else{
             if (strlen(commande) > 0) printf("Commande inconnue.\n");
         }

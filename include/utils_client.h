@@ -14,5 +14,6 @@ void cmd_li(uint16_t mon_id);
 void cmd_join(char *id_groupe_str, uint16_t mon_id);
 void cmd_decline(char *id_groupe_str, uint16_t mon_id);
 void cmd_members(char *id_groupe_str, uint16_t mon_id);
+void cmd_post(char *args, uint16_t mon_id);
 
 #endif

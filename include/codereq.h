@@ -108,7 +108,7 @@ typedef struct {
     uint16_t id_client;   // 11 bits
     uint16_t id_groupe;   // 11 bits
     uint8_t len;          // Longueur du billet
-    char data[256];       // Contenu du billet = max 255 caractères + \0
+    char data[2048];       // Contenu du billet
 } req_poster_billet_t;
 
 // CODEREQ = 13 reponse serveur -> client apres post d'un billet

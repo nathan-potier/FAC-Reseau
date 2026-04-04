@@ -406,3 +406,51 @@ int initialiser_profil(uint16_t *mon_id, uint16_t *mon_port_udp, char *cle_serve
         return 0;
     }
 }
+
+void cmd_post(char *args, uint16_t mon_id) {
+    req_poster_billet_t req = { .codereq = 12, .id_client = mon_id };
+    char *ptr = args;
+    char *endptr;
+
+    long id_groupe = strtol(ptr, &endptr, 10);
+    
+    if (ptr == endptr || *endptr != ' ') {
+        printf("Erreur de format. Usage: post <id_groupe> <message>\n");
+        return;
+    }
+
+    req.id_groupe = (uint16_t)id_groupe;
+    char *message = endptr + 1; // On saute l'espace
+
+    size_t len = strlen(message);
+    if (len == 0) {
+        printf("Erreur : Le message ne peut pas être vide.\n");
+        return;
+    }
+    
+    if (len > 2048) {
+        req.len = 2048;
+    } else {
+        req.len = (uint16_t)len;
+    }
+    memset(req.data, 0, sizeof(req.data));
+    strncpy(req.data, message, req.len);
+
+    //entête (6) + le texte (2048)
+    uint8_t buffer_cmd[2500], buffer_rep[512]; 
+    size_t taille_msg = serialize_poster_billet(&req, buffer_cmd);
+
+    // on recoi CODEREQ 13 du serv
+    int recu = envoyer_requete_tcp(buffer_cmd, taille_msg, buffer_rep, sizeof(buffer_rep), 4);
+    
+    if (recu >= 4) {
+        rep_poster_billet_t rep;
+        deserialize_poster_billet_resp(buffer_rep, &rep);
+
+        if (rep.codereq == 13) {
+            printf("\nBillet n°%u posté avec succès sur le groupe %u !\n\n", rep.numb, rep.idg);
+        } else {
+            printf("Erreur : Le serveur a répondu avec un code inattendu (%u).\n", rep.codereq);
+        }
+    }
+}
