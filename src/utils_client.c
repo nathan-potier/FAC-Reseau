@@ -5,7 +5,14 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <string.h>
+#include <pthread.h>
+
+#include "utils.h"
 #include "utils_client.h"
+#include "serialisation_client.h"
+
+#define ADRESSE_LOCALE "::1"
+#define PORT_SERVEUR 8080
 
 void *ecoute_notifications_udp(void *arg) {
     int sock_udp = *((int *)arg);
@@ -90,4 +97,379 @@ int check_erreur_serveur(const uint8_t *buffer, int recu) {
         }
     }
     return 0;
+}
+
+int envoyer_requete_tcp(const uint8_t *buffer_cmd, size_t taille_msg, uint8_t *buffer_rep, size_t taille_max, int taille_exacte) {
+    int sock_cmd = init_client_tcp_ipv6(ADRESSE_LOCALE, PORT_SERVEUR);
+    if (sock_cmd < 0) {
+        printf("Erreur de connexion au serveur.\n");
+        return -1;
+    }
+
+    my_send(sock_cmd, buffer_cmd, taille_msg);
+
+    // on lit l'en-tête
+    int recu = my_recv(sock_cmd, buffer_rep, 2);
+    if (recu != 2) {
+        close(sock_cmd);
+        printf("Erreur de réception ou serveur déconnecté.\n");
+        return -1;
+    }
+
+    uint16_t entete;
+    memcpy(&entete, buffer_rep, 2);
+    entete = ntohs(entete);
+    uint8_t codereq = entete >> 11;
+
+    // Si c'est une erreur (CODEREQ 31)
+    if (codereq == 31) {
+        uint16_t len = entete & 0x07FF; // La taille exacte du message d'erreur
+        if (len > 0 && len <= (taille_max - 2)) {
+            int recu_err = my_recv(sock_cmd, buffer_rep + 2, len);
+            if (recu_err > 0) recu += recu_err;
+        }
+        close(sock_cmd);
+        check_erreur_serveur(buffer_rep, recu);
+        return -1; 
+    }
+
+    if (taille_exacte > 2) {
+        int recu_suite = my_recv(sock_cmd, buffer_rep + 2, taille_exacte - 2);
+        if (recu_suite > 0) recu += recu_suite;
+    } else if (taille_exacte == 0) {
+        int recu_suite = recv(sock_cmd, buffer_rep + 2, taille_max - 2, 0);
+        if (recu_suite > 0) recu += recu_suite;
+    }
+    
+    close(sock_cmd);
+    return recu;
+}
+
+void abonner_groupe_multicast(uint16_t port, const char *ip_str, const char *nom_groupe) {
+    // Nouvelle socket sur le port du groupe
+    int sock_multi = init_ecoute_udp_ipv6(port);
+    if (sock_multi >= 0) {
+        rejoindre_multicast_ipv6(sock_multi, ip_str);
+        
+        // On lance un thread indépendant pour écouter ce groupe
+        int *arg_sock_multi = malloc(sizeof(int));
+        *arg_sock_multi = sock_multi;
+        
+        pthread_t thread_multi;
+        pthread_create(&thread_multi, NULL, ecoute_notifications_udp, arg_sock_multi);
+        pthread_detach(thread_multi);
+        
+        if (nom_groupe != NULL) {
+            printf("Écoute Multicast activée pour le groupe \"%s\" sur le port %u.\n", nom_groupe, port);
+        } else {
+            printf("Écoute Multicast activée pour ce groupe sur le port %u.\n", port);
+        }
+    } else {
+        printf("Erreur lors de la création de l'écoute Multicast.\n");
+    }
+}
+
+void cmd_create(char *nom_groupe, uint16_t mon_id) {
+    req_creer_groupe_t req_cg = { .codereq = 3, .id = mon_id };
+    
+    size_t taille_reelle = strlen(nom_groupe);
+    if (taille_reelle > 255) {
+        req_cg.len = 255;
+    } else {
+        req_cg.len = (uint8_t)taille_reelle;
+    }
+    strncpy(req_cg.nomg, nom_groupe, req_cg.len);
+
+    uint8_t buffer_cmd[512], buffer_rep[512];
+    size_t taille_msg = serialize_creer_groupe(&req_cg, buffer_cmd);
+
+    printf("Requete de creation du groupe \"%s\" envoyé.\n", nom_groupe);
+
+    if (envoyer_requete_tcp(buffer_cmd, taille_msg, buffer_rep, sizeof(buffer_rep), RESP_CREER_GROUPE_SIZE) > 0) {
+        rep_creer_groupe_t rep_cg;
+        deserialize_creer_groupe_resp(buffer_rep, &rep_cg);
+
+        if (rep_cg.codereq == 4) {
+            char ip[INET6_ADDRSTRLEN]; // Transforme l'IP binaire en texte
+            inet_ntop(AF_INET6, rep_cg.ipmdiff, ip, INET6_ADDRSTRLEN);
+
+            printf("\nGROUPE \"%s\" CRÉÉ AVEC SUCCÈS !\n", nom_groupe);
+            printf("ID du groupe : %u\n", rep_cg.idg);
+            printf("IP Multicast : %s\n", ip);
+            printf("Port Multicast : %u\n\n", rep_cg.portmdiff);
+
+            abonner_groupe_multicast(rep_cg.portmdiff, ip, nom_groupe);
+        } else {
+            printf("Erreur : Le serveur a renvoyé un code inattendu (%u).\n", rep_cg.codereq);
+        }
+    }
+}
+
+void cmd_invite(char *args, uint16_t mon_id) {
+    req_inviter_t req_inv = { .codereq = 5, .id_client = mon_id, .nb = 0 };
+    char *ptr = args, *endptr;
+
+    long id_groupe = strtol(ptr, &endptr, 10);
+    if (ptr == endptr) {
+        printf("Erreur de format. Usage: invite <id_groupe> <id_dest1> [id_dest2]...\n");
+        return;
+    }
+
+    req_inv.id_groupe = (uint16_t)id_groupe;
+    ptr = endptr; // decalage jusqu'à apres le numero du groupe
+    
+    // on lit tout les invités (max 31) jusqu'à la fin
+    while (*ptr != '\0' && req_inv.nb < 31) {
+        long id_invite = strtol(ptr, &endptr, 10);
+        if (ptr == endptr) break;
+        req_inv.id_invites[req_inv.nb++] = (uint16_t)id_invite;
+        ptr = endptr;
+    }
+
+    if (req_inv.nb > 0) {
+        uint8_t buffer_cmd[512], buffer_rep[512];
+        size_t taille_msg = serialize_inviter(&req_inv, buffer_cmd);
+
+        printf("Requête d'invitation envoyée au serveur.\n");
+
+        if (envoyer_requete_tcp(buffer_cmd, taille_msg, buffer_rep, sizeof(buffer_rep), 2) == 2) {
+            rep_inviter_t rep_inv_resp;
+            deserialize_inviter_resp(buffer_rep, &rep_inv_resp);
+            
+            if (rep_inv_resp.codereq == 24) {
+                printf("%d invitation(s) envoyée(s) pour le groupe %u !\n", req_inv.nb, req_inv.id_groupe);
+            } else {
+                printf("Erreur : Le serveur a répondu avec le code %u (attendu: 24).\n", rep_inv_resp.codereq);
+            }
+        }
+    }
+}
+
+void cmd_li(uint16_t mon_id) {
+    req_lister_invites_t req_li = { .codereq = 6, .id_client = mon_id };
+    uint8_t buffer_cmd[512], buffer_rep[512];
+    size_t taille_msg = serialize_lister_invites(&req_li, buffer_cmd);
+
+    int recu = envoyer_requete_tcp(buffer_cmd, taille_msg, buffer_rep, sizeof(buffer_rep), 0);
+    if (recu >= 2) {
+        rep_lister_invites_t rep_li;
+        deserialize_lister_invites_resp(buffer_rep, &rep_li);
+
+        if (rep_li.codereq == 7) {
+            printf("\n--- VOS INVITATIONS EN ATTENTE (%d) ---\n", rep_li.nb);
+
+            for (int i = 0; i < rep_li.nb; i++) {
+                printf("Groupe ID : %u\n", rep_li.id_groupes[i]);
+            }
+
+            if (rep_li.nb == 0) printf("Vous n'avez aucune invitation.\n");
+            printf("--------------------------------------\n\n");
+        } else {
+            printf("Erreur serveur (Code: %u)\n", rep_li.codereq);
+        }
+    }
+}
+
+void cmd_join(char *id_groupe_str, uint16_t mon_id) {
+    req_action_invitation_t req_act = { .codereq = 8, .id_client = mon_id, .an = 1 };
+    req_act.id_groupe = (uint16_t)atoi(id_groupe_str);
+
+    uint8_t buffer_cmd[512], buffer_rep[2048];
+    size_t taille_msg = serialize_action_invitation(&req_act, buffer_cmd);
+
+    int recu = envoyer_requete_tcp(buffer_cmd, taille_msg, buffer_rep, sizeof(buffer_rep), 0);
+    if (recu >= 22) {
+        rep_action_invitation_acceptee_t rep_join;
+        memset(&rep_join, 0, sizeof(rep_join));
+        deserialize_action_invitation_acceptee_resp(buffer_rep, &rep_join);
+        
+        if (rep_join.codereq == 9) {
+            char ip_str[INET6_ADDRSTRLEN];
+            inet_ntop(AF_INET6, rep_join.ipmdiff, ip_str, INET6_ADDRSTRLEN);
+            
+            printf("\nINVITATION ACCEPTÉE POUR LE GROUPE %u !\n", rep_join.idg);
+            printf("IP Multicast : %s\n", ip_str);
+            printf("Port Multicast : %u\n", rep_join.portmdiff);
+            
+            printf("\n--- MEMBRES PRÉSENTS (%u) ---\n", rep_join.nb);
+            for (int i = 0; i < rep_join.nb; i++) {
+                if (i == 0) {
+                    printf(" -> [%u] %s (Admin)\n", rep_join.id_membres[i], rep_join.nom_membres[i]);
+                } else {
+                    printf(" -> [%u] %s\n", rep_join.id_membres[i], rep_join.nom_membres[i]);
+                }
+            }
+            printf("-----------------------------\n\n");
+
+            abonner_groupe_multicast(rep_join.portmdiff, ip_str, NULL);
+        } else {
+            printf("Erreur : Le serveur a répondu avec un code inattendu (%u).\n", rep_join.codereq);
+        }
+    } else if (recu > 0) {
+        printf("Erreur : Le serveur n'a pas répondu ou réponse incomplète.\n");
+    }
+}
+
+void cmd_decline(char *id_groupe_str, uint16_t mon_id) {
+    req_action_invitation_t req_act = { .codereq = 8, .id_client = mon_id, .an = 0 };
+    req_act.id_groupe = (uint16_t)atoi(id_groupe_str);
+
+    uint8_t buffer_cmd[512], buffer_rep[512];
+    size_t taille_msg = serialize_action_invitation(&req_act, buffer_cmd);
+
+    if (envoyer_requete_tcp(buffer_cmd, taille_msg, buffer_rep, sizeof(buffer_rep), 0) > 0) {
+        printf("Invitation pour le groupe %u refusée et supprimée.\n", req_act.id_groupe);
+    }
+}
+
+void cmd_members(char *id_groupe_str, uint16_t mon_id) {
+    req_demander_membres_t req_mem = { .codereq = 10, .id_client = mon_id };
+    req_mem.id_groupe = (uint16_t)atoi(id_groupe_str);
+
+    uint8_t buffer_cmd[512], buffer_rep[2048];
+    size_t taille_msg = serialize_demander_membres(&req_mem, buffer_cmd);
+
+    int recu = envoyer_requete_tcp(buffer_cmd, taille_msg, buffer_rep, sizeof(buffer_rep), 0);
+    if (recu >= 4) {
+        rep_demander_membres_t rep_mem;
+        deserialize_demander_membres_resp(buffer_rep, &rep_mem);
+
+        if (rep_mem.codereq == 11) {
+            if (req_mem.id_groupe == 0) {
+                printf("\n--- LISTE DE TOUS LES UTILISATEURS (%u) ---\n", rep_mem.nb);
+            } else {
+                printf("\n--- MEMBRES DU GROUPE %u (%u) ---\n", rep_mem.idg, rep_mem.nb);
+            }
+            
+            if (rep_mem.nb == 0) {
+                printf("Aucun membre trouvé.\n");
+            } else {
+                for (int i = 0; i < rep_mem.nb; i++) {
+                    // premier membre = admin du groupe
+                    if (i == 0 && req_mem.id_groupe != 0) {
+                        printf(" -> [%u] %s (Admin)\n", rep_mem.id_membres[i], rep_mem.nom_membres[i]);
+                    } else {
+                        printf(" -> [%u] %s\n", rep_mem.id_membres[i], rep_mem.nom_membres[i]);
+                    }
+                }
+            }
+            printf("-------------------------------------------\n\n");
+        } else {
+            printf("Erreur : Le serveur a renvoyé un code inattendu (%u).\n", rep_mem.codereq);
+        }
+    }
+}
+
+int initialiser_profil(uint16_t *mon_id, uint16_t *mon_port_udp, char *cle_serveur) {
+    //Enregistrement des infos pour la reconnexion
+    FILE *fichier = fopen("mon_profil.txt", "rb");
+    if (fichier != NULL) {
+        rep_inscription_t profil;
+        if (fread(&profil, sizeof(rep_inscription_t), 1, fichier) == 1) {
+            *mon_id = profil.id; // sauvegarde ID
+            *mon_port_udp = profil.portudp;
+            memcpy(cle_serveur, profil.cle, 113);
+            printf("[INFO] Profil local trouvé ! Reconnexion automatique...\n");
+            printf("Bon retour ! Ton ID est %u et ton port UDP est %u.\n", *mon_id, *mon_port_udp);
+            fclose(fichier);
+            return 1;
+        }
+        fclose(fichier);
+    }
+
+    char pseudo[100];
+    printf("Entrez votre pseudo (10 caractères max) : ");
+    if (fgets(pseudo, sizeof(pseudo), stdin) == NULL || pseudo[0] == '\n') {
+        printf("Erreur : Le pseudo ne peut pas être vide.\n");
+        return 0;
+    }
+    pseudo[strcspn(pseudo, "\n")] = 0;
+
+    req_inscription_t req;
+    // Met tout a 0 donc Clé vide (sans sécurité)
+    memset(&req, 0, sizeof(req));
+    req.codereq = 1;
+    strncpy(req.nom, pseudo, 10);
+
+    uint8_t buffer_cmd[REQ_INSCRIPTION_SIZE], buffer_rep[RESP_INSCRIPTION_SIZE];
+    serialize_inscription_req(&req, buffer_cmd);
+
+    int sock = init_client_tcp_ipv6(ADRESSE_LOCALE, PORT_SERVEUR);
+    if (sock < 0) {
+        printf("Erreur de connexion au serveur.\n");
+        return 0;
+    } 
+    
+    my_send(sock, buffer_cmd, REQ_INSCRIPTION_SIZE);
+    my_recv(sock, buffer_rep, RESP_INSCRIPTION_SIZE);
+    close(sock);
+
+    rep_inscription_t rep;
+    deserialize_inscription_resp(buffer_rep, &rep);
+
+    if (rep.codereq == 2) {
+        printf("INSCRIPTION RÉUSSIE !\nID : %u\nPort UDP : %u\n", rep.id, rep.portudp);
+        *mon_id = rep.id;
+        *mon_port_udp = rep.portudp;
+        memcpy(cle_serveur, rep.cle, 113);
+
+        fichier = fopen("mon_profil.txt", "wb");
+        if (fichier) {
+            fwrite(&rep, sizeof(rep_inscription_t), 1, fichier);
+            fclose(fichier);
+            printf("[INFO] Profil sauvegardé localement !\n");
+        }
+        return 1;
+    } else {
+        printf("\n[Erreur] Le serveur a refusé l'inscription (Code retour : %u).\n", rep.codereq);
+        return 0;
+    }
+}
+
+void cmd_post(char *args, uint16_t mon_id) {
+    req_poster_billet_t req = { .codereq = 12, .id_client = mon_id };
+    char *ptr = args;
+    char *endptr;
+
+    long id_groupe = strtol(ptr, &endptr, 10);
+    
+    if (ptr == endptr || *endptr != ' ') {
+        printf("Erreur de format. Usage: post <id_groupe> <message>\n");
+        return;
+    }
+
+    req.id_groupe = (uint16_t)id_groupe;
+    char *message = endptr + 1; // On saute l'espace
+
+    size_t len = strlen(message);
+    if (len == 0) {
+        printf("Erreur : Le message ne peut pas être vide.\n");
+        return;
+    }
+    
+    if (len > 2048) {
+        req.len = 2048;
+    } else {
+        req.len = (uint16_t)len;
+    }
+    memset(req.data, 0, sizeof(req.data));
+    strncpy(req.data, message, req.len);
+
+    //entête (6) + le texte (2048)
+    uint8_t buffer_cmd[2500], buffer_rep[512]; 
+    size_t taille_msg = serialize_poster_billet(&req, buffer_cmd);
+
+    // on recoi CODEREQ 13 du serv
+    int recu = envoyer_requete_tcp(buffer_cmd, taille_msg, buffer_rep, sizeof(buffer_rep), 4);
+    
+    if (recu >= 4) {
+        rep_poster_billet_t rep;
+        deserialize_poster_billet_resp(buffer_rep, &rep);
+
+        if (rep.codereq == 13) {
+            printf("\nBillet n°%u posté avec succès sur le groupe %u !\n\n", rep.numb, rep.idg);
+        } else {
+            printf("Erreur : Le serveur a répondu avec un code inattendu (%u).\n", rep.codereq);
+        }
+    }
 }

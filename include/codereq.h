@@ -102,4 +102,20 @@ typedef struct {
     char nom_membres[100][10];     // 10 octets chacun
 } rep_demander_membres_t;
 
+// CODEREQ = 12 (Poster un billet)
+typedef struct {
+    uint8_t codereq;      // 5 bits
+    uint16_t id_client;   // 11 bits
+    uint16_t id_groupe;   // 11 bits
+    uint16_t len;          // Longueur du billet
+    char data[2048];       // Contenu du billet
+} req_poster_billet_t;
+
+// CODEREQ = 13 reponse serveur -> client apres post d'un billet
+typedef struct {
+    uint8_t codereq;      // 5 bits
+    uint16_t idg;         // 11 bits
+    uint16_t numb;        // Numéro du billet donné par le serveur (16 bits)
+} rep_poster_billet_t;
+
 #endif
