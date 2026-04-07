@@ -118,4 +118,22 @@ typedef struct {
     uint16_t numb;        // Numéro du billet donné par le serveur (16 bits)
 } rep_poster_billet_t;
 
+// CODEREQ = 14 (Répondre à un billet)
+typedef struct {
+    uint8_t codereq;      // 5 bits
+    uint16_t id_client;   // 11 bits
+    uint16_t id_groupe;   // 11 bits
+    uint16_t numb;        // 11 bits Numéro du billet qu'on répond
+    uint16_t len;         // 16 bits Longueur de la réponse
+    char data[2048];      // Contenu de la réponse
+} req_repondre_billet_t;
+
+// CODEREQ = 15 reponse serveur -> client apres une réponse
+typedef struct {
+    uint8_t codereq;      // 5 bits
+    uint16_t idg;         // 11 bits
+    uint16_t numb;        // 11 bits
+    uint8_t numr;         // 5 bits Numéro de la reponse donné par le serveur
+} rep_repondre_billet_t;
+
 #endif
