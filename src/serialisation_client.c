@@ -269,5 +269,6 @@ void deserialize_poster_billet_resp(const uint8_t *buffer, rep_poster_billet_t *
     // NUMB (16 bits)
     uint16_t ligne2;
     memcpy(&ligne2, buffer + 2, 2);
-    rep->numb = ntohs(ligne2);
+    ligne2 = ntohs(ligne2);
+    rep->numb = ligne2 >> 5; // 5 bits de zéros à droite
 }
