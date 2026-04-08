@@ -118,22 +118,30 @@ typedef struct {
     uint16_t numb;        // Numéro du billet donné par le serveur (16 bits)
 } rep_poster_billet_t;
 
-// CODEREQ = 14 (Répondre à un billet)
+// CODEREQ = 14 Répondre à un billet
 typedef struct {
-    uint8_t codereq;      // 5 bits
-    uint16_t id_client;   // 11 bits
-    uint16_t id_groupe;   // 11 bits
-    uint16_t numb;        // 11 bits Numéro du billet qu'on répond
-    uint16_t len;         // 16 bits Longueur de la réponse
-    char data[2048];      // Contenu de la réponse
+    uint8_t codereq;      
+    uint16_t id_groupe; //11 bits 
+    uint16_t id_client; //11 bits
+    uint16_t numb; //11 btis
+    uint16_t len; //16bits     
+    char data[2048];
 } req_repondre_billet_t;
 
-// CODEREQ = 15 reponse serveur -> client apres une réponse
+// CODEREQ = 15 Réponse suite à une réponse de billet
 typedef struct {
-    uint8_t codereq;      // 5 bits
-    uint16_t idg;         // 11 bits
-    uint16_t numb;        // 11 bits
-    uint8_t numr;         // 5 bits Numéro de la reponse donné par le serveur
+    uint8_t codereq;      
+    uint16_t id_groupe; //11 bits    
+    uint16_t numb; // 11 bits
+    uint16_t numr;    // 5bits
 } rep_repondre_billet_t;
 
+// CODEREQ = 16 Demander les derniers billets d'un groupe
+typedef struct {
+    uint8_t codereq;      
+    uint16_t id_groupe;  //11       
+    uint16_t id_client;   //11
+    uint16_t numb;        //11
+    uint16_t numr;        //5
+} req_demander_billets_t;
 #endif
