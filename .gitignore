@@ -2,4 +2,6 @@ serveur
 client
 mon_profil.txt
 src/*.o
-
+test_alice/*
+test_bob/*
+test_auto.sh
