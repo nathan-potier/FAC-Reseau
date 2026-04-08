@@ -34,7 +34,7 @@ typedef struct {
 // Réponse du serveur -> client pour création de groupe (CODEREQ = 4)
 typedef struct {
     uint8_t codereq;
-    uint16_t idg;
+    uint16_t id_groupe;
     uint16_t portmdiff;
     uint8_t ipmdiff[16];
 } rep_creer_groupe_t;
@@ -72,7 +72,7 @@ typedef struct {
 // Réponse du serveur -> client suite à une invitation acceptée (CODEREQ = 9)
 typedef struct {
     uint8_t codereq;               // 5 bits
-    uint16_t idg;                  // 11 bits
+    uint16_t id_groupe;                  // 11 bits
     uint16_t portmdiff;            // 16 bits
     uint8_t ipmdiff[16];           // 16 octets
     uint16_t nb;                   // 16 bits
@@ -96,7 +96,7 @@ typedef struct {
 // CODEREQ = 11 serveur -> client
 typedef struct {
     uint8_t codereq;               // 11
-    uint16_t idg;                  // 1 bits
+    uint16_t id_groupe;                  // 1 bits
     uint16_t nb;                   // 6 bits
     uint16_t id_membres[100];
     char nom_membres[100][10];     // 10 octets chacun
@@ -114,7 +114,7 @@ typedef struct {
 // CODEREQ = 13 reponse serveur -> client apres post d'un billet
 typedef struct {
     uint8_t codereq;      // 5 bits
-    uint16_t idg;         // 11 bits
+    uint16_t id_groupe;         // 11 bits
     uint16_t numb;        // Numéro du billet donné par le serveur (16 bits)
 } rep_poster_billet_t;
 
@@ -122,17 +122,17 @@ typedef struct {
 // CODEREQ = 14 Répondre à un billet
 typedef struct {
     uint8_t codereq;      
-    uint16_t idg;         
+    uint16_t id_groupe;         
     uint16_t id_client;   
     uint16_t numb;        
-    uint8_t len;          
-    char data[256];
+    uint16_t len;          
+    char data[2048];
 } req_repondre_billet_t;
 
 // CODEREQ = 15 Réponse suite à une réponse de billet
 typedef struct {
     uint8_t codereq;      
-    uint16_t idg;         
+    uint16_t id_groupe;         
     uint16_t numb;        
     uint16_t numr;        
 } rep_repondre_billet_t;
@@ -140,7 +140,7 @@ typedef struct {
 // CODEREQ = 16 Demander les derniers billets d'un groupe
 typedef struct {
     uint8_t codereq;      
-    uint16_t idg;         
+    uint16_t id_groupe;         
     uint16_t id_client;   
     uint16_t numb;        
     uint16_t numr;        
