@@ -248,7 +248,7 @@ size_t serialize_poster_billet(const req_poster_billet_t *req, uint8_t *buffer) 
     ligne2 = htons(ligne2);
     memcpy(buffer + 2, &ligne2, 2);
 
-    // LEN (2 octet)
+    // LEN (2 octets)
     uint16_t len_net = htons(req->len);
     memcpy(buffer + 4, &len_net, 2);
 
@@ -266,7 +266,7 @@ void deserialize_poster_billet_resp(const uint8_t *buffer, rep_poster_billet_t *
     rep->codereq = ligne1 >> 11;
     rep->idg = ligne1 & 0x07FF;
 
-    // NUMB (16 bits)
+    // NUMB (11 bits) + ZEROS (5 bits)
     uint16_t ligne2;
     memcpy(&ligne2, buffer + 2, 2);
     ligne2 = ntohs(ligne2);
@@ -305,7 +305,7 @@ void deserialize_repondre_billet_resp(const uint8_t *buffer, rep_repondre_billet
     memcpy(&ligne1, buffer, 2);
     ligne1 = ntohs(ligne1);
     rep->codereq = ligne1 >> 11;
-    rep->idg = ligne1 & 0x07FF;
+    rep->id_groupe = ligne1 & 0x07FF;
 
     // NUMB (11 bits) + NUMR (5 bits)
     uint16_t ligne2;

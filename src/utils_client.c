@@ -473,3 +473,59 @@ void cmd_post(char *args, uint16_t mon_id) {
         }
     }
 }
+
+void cmd_reply(char *args, uint16_t mon_id) {
+    req_repondre_billet_t req = { .codereq = 14, .id_client = mon_id };
+    char *ptr = args;
+    char *endptr;
+
+    // ID Groupe
+    long id_groupe = strtol(ptr, &endptr, 10);
+    if (ptr == endptr || *endptr != ' ') {
+        printf("Erreur de format. Usage: reply <id_groupe> <id_billet> <message>\n");
+        return;
+    }
+    req.id_groupe = (uint16_t)id_groupe;
+
+    // ID Billet
+    ptr = endptr + 1; // On passe l'espace
+    long id_billet = strtol(ptr, &endptr, 10);
+    if (ptr == endptr || *endptr != ' ') {
+        printf("Erreur de format. Usage: reply <id_groupe> <id_billet> <message>\n");
+        return;
+    }
+    req.numb = (uint16_t)id_billet;
+
+    // Message
+    char *message = endptr + 1;
+    size_t len = strlen(message);
+    if (len == 0) {
+        printf("Erreur : Le message ne peut pas être vide.\n");
+        return;
+    }
+    
+    if (len > 2048) {
+        req.len = 2048;
+    } else {
+        req.len = (uint16_t)len;
+    }
+    memset(req.data, 0, sizeof(req.data));
+    strncpy(req.data, message, req.len);
+
+    uint8_t buffer_cmd[2500], buffer_rep[512]; 
+    size_t taille_msg = serialize_repondre_billet(&req, buffer_cmd);
+
+    // 4 octets pour le CODEREQ 15
+    int recu = envoyer_requete_tcp(buffer_cmd, taille_msg, buffer_rep, sizeof(buffer_rep), 4);
+    
+    if (recu >= 4) {
+        rep_repondre_billet_t rep;
+        deserialize_repondre_billet_resp(buffer_rep, &rep);
+
+        if (rep.codereq == 15) {
+            printf("\nRéponse n°%u postée avec succès sur le billet %u du groupe %u !\n\n", rep.numr, rep.numb, rep.id_groupe);
+        } else {
+            printf("Erreur : Le serveur a répondu avec un code inattendu (%u).\n", rep.codereq);
+        }
+    }
+}
