@@ -122,28 +122,28 @@ typedef struct {
 // CODEREQ = 14 Répondre à un billet
 typedef struct {
     uint8_t codereq;      
-    uint16_t id_groupe;         
-    uint16_t id_client;   
-    uint16_t numb;        
-    uint16_t len;          
+    uint16_t id_groupe; //11 bits 
+    uint16_t id_client; //11 bits
+    uint16_t numb; //11 btis
+    uint16_t len; //16bits     
     char data[2048];
 } req_repondre_billet_t;
 
 // CODEREQ = 15 Réponse suite à une réponse de billet
 typedef struct {
     uint8_t codereq;      
-    uint16_t id_groupe;         
-    uint16_t numb;        
-    uint16_t numr;        
+    uint16_t id_groupe; //11 bits    
+    uint16_t numb; // 11 bits
+    uint16_t numr;    // 5bits
 } rep_repondre_billet_t;
 
 // CODEREQ = 16 Demander les derniers billets d'un groupe
 typedef struct {
     uint8_t codereq;      
-    uint16_t id_groupe;         
-    uint16_t id_client;   
-    uint16_t numb;        
-    uint16_t numr;        
+    uint16_t id_groupe;  //11       
+    uint16_t id_client;   //11
+    uint16_t numb;        //11
+    uint16_t numr;        //5
 } req_demander_billets_t;
 
 #endif
