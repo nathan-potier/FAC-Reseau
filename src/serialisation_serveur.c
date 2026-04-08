@@ -57,7 +57,7 @@ void deserialize_creer_groupe_req(const uint8_t *buffer, req_creer_groupe_t *req
 void serialize_creer_groupe_resp(const rep_creer_groupe_t *rep, uint8_t *buffer) {
     memset(buffer, 0, 20);
 
-    uint16_t premiere_ligne = htons((rep->codereq << 11) | (rep->idg & 0x07FF));
+    uint16_t premiere_ligne = htons((rep->codereq << 11) | (rep->id_groupe & 0x07FF));
     memcpy(buffer, &premiere_ligne, 2);
 
     uint16_t port_net = htons(rep->portmdiff);
@@ -120,7 +120,7 @@ void deserialize_action_invitation_req(const uint8_t *buffer, req_action_invitat
 
 // Désérialise la réponse à une invitation (CODEREQ = 24)
 size_t serialize_accepter_invitation_resp(const rep_action_invitation_acceptee_t *rep, uint8_t *buffer) {
-    uint16_t l1 = htons((rep->codereq << 11) | (rep->idg & 0x07FF));
+    uint16_t l1 = htons((rep->codereq << 11) | (rep->id_groupe & 0x07FF));
     memcpy(buffer, &l1, 2);
     
     uint16_t port = htons(rep->portmdiff);
@@ -154,7 +154,7 @@ void deserialize_lister_membres_req(const uint8_t *buffer, req_demander_membres_
 
 // Sérialise la réponse de listing des membres d'un groupe (CODEREQ = 11)
 size_t serialize_lister_membres_resp(const rep_demander_membres_t *rep, uint8_t *buffer) {
-    uint16_t l1 = htons((rep->codereq << 11) | (rep->idg & 0x07FF));
+    uint16_t l1 = htons((rep->codereq << 11) | (rep->id_groupe & 0x07FF));
     memcpy(buffer, &l1, 2);
     
     uint16_t nb = htons(rep->nb);
@@ -174,53 +174,57 @@ size_t serialize_lister_membres_resp(const rep_demander_membres_t *rep, uint8_t 
 
 //codereq 12
 void deserialize_poster_billet_req(const uint8_t *buffer, req_poster_billet_t *req) {
-    uint16_t l1, l2;
+    uint16_t l1, l2, l4;
     memcpy(&l1, buffer, 2); l1 = ntohs(l1);
     req->codereq = l1 >> 11;
-    req->idg = l1 & 0x07FF;
+    req->id_groupe = l1 & 0x07FF;
 
     memcpy(&l2, buffer + 2, 2); l2 = ntohs(l2);
     req->id_client = l2 >> 5;
 
-    req->len = buffer[4];
-    memset(req->data, 0, 256);
-    memcpy(req->data, buffer + 5, req->len);
+    memcpy(&l4, buffer + 6, 2); 
+    req->len = ntohs(l4);
+
+    memset(req->data, 0, 2048);
+    memcpy(req->data, buffer + 8, req->len); 
 }
+
 
 //codereq 13
 void serialize_poster_billet_resp(const rep_poster_billet_t *rep, uint8_t *buffer) {
-    uint16_t l1 = htons((rep->codereq << 11) | (rep->idg & 0x07FF));
+    uint16_t l1 = htons((rep->codereq << 11) | (rep->id_groupe & 0x07FF));
     memcpy(buffer, &l1, 2);
     
     uint16_t numb_net = htons(rep->numb);
     memcpy(buffer + 2, &numb_net, 2);
     
-    // Le sujet précise d'envoyer 16 bits de ZEROS à la fin
     uint16_t zeros = 0;
     memcpy(buffer + 4, &zeros, 2);
 }
 
 //codereq 14
 void deserialize_repondre_billet_req(const uint8_t *buffer, req_repondre_billet_t *req) {
-    uint16_t l1, l2, l3;
+    uint16_t l1, l2, l3, l4;
     memcpy(&l1, buffer, 2); l1 = ntohs(l1);
     req->codereq = l1 >> 11;
-    req->idg = l1 & 0x07FF;
+    req->id_groupe = l1 & 0x07FF;
 
     memcpy(&l2, buffer + 2, 2); l2 = ntohs(l2);
     req->id_client = l2 >> 5;
 
-    memcpy(&l3, buffer + 4, 2);
+    memcpy(&l3, buffer + 4, 2); 
     req->numb = ntohs(l3);
 
-    req->len = buffer[6];
-    memset(req->data, 0, 256);
-    memcpy(req->data, buffer + 7, req->len);
+    memcpy(&l4, buffer + 6, 2); 
+    req->len = ntohs(l4);
+
+    memset(req->data, 0, 2048);
+    memcpy(req->data, buffer + 8, req->len); 
 }
 
 //codereq 15
 void serialize_repondre_billet_resp(const rep_repondre_billet_t *rep, uint8_t *buffer) {
-    uint16_t l1 = htons((rep->codereq << 11) | (rep->idg & 0x07FF));
+    uint16_t l1 = htons((rep->codereq << 11) | (rep->id_groupe & 0x07FF));
     memcpy(buffer, &l1, 2);
     
     uint16_t numb_net = htons(rep->numb);
@@ -235,7 +239,7 @@ void deserialize_demander_billets_req(const uint8_t *buffer, req_demander_billet
     uint16_t l1, l2, numb_net, numr_net;
     memcpy(&l1, buffer, 2); l1 = ntohs(l1);
     req->codereq = l1 >> 11;
-    req->idg = l1 & 0x07FF;
+    req->id_groupe = l1 & 0x07FF;
 
     memcpy(&l2, buffer + 2, 2); l2 = ntohs(l2);
     req->id_client = l2 >> 5;
