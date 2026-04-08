@@ -174,19 +174,22 @@ size_t serialize_lister_membres_resp(const rep_demander_membres_t *rep, uint8_t 
 
 //codereq 12
 void deserialize_poster_billet_req(const uint8_t *buffer, req_poster_billet_t *req) {
-    uint16_t l1, l2, l4;
+    uint16_t l1, l2, l3;
     memcpy(&l1, buffer, 2); l1 = ntohs(l1);
     req->codereq = l1 >> 11;
-    req->id_groupe = l1 & 0x07FF;
+    req->id_client = l1 & 0x07FF;
 
     memcpy(&l2, buffer + 2, 2); l2 = ntohs(l2);
-    req->id_client = l2 >> 5;
+    req->id_groupe = l2 >> 5;
 
-    memcpy(&l4, buffer + 6, 2); 
-    req->len = ntohs(l4);
+    memcpy(&l3, buffer + 6, 2); 
+    req->len = ntohs(l3);
 
-    memset(req->data, 0, 2048);
-    memcpy(req->data, buffer + 8, req->len); 
+    if (req->len > sizeof(req->data)) {
+        req->len = sizeof(req->data); 
+    }
+    memset(req->data, 0, sizeof(req->data));
+    memcpy(req->data, buffer + 6, req->len); 
 }
 
 
@@ -195,11 +198,9 @@ void serialize_poster_billet_resp(const rep_poster_billet_t *rep, uint8_t *buffe
     uint16_t l1 = htons((rep->codereq << 11) | (rep->id_groupe & 0x07FF));
     memcpy(buffer, &l1, 2);
     
-    uint16_t numb_net = htons(rep->numb);
-    memcpy(buffer + 2, &numb_net, 2);
+    uint16_t l2 = htons(rep->numb << 5); 
+    memcpy(buffer + 2, &l2, 2);
     
-    uint16_t zeros = 0;
-    memcpy(buffer + 4, &zeros, 2);
 }
 
 //codereq 14
@@ -207,10 +208,10 @@ void deserialize_repondre_billet_req(const uint8_t *buffer, req_repondre_billet_
     uint16_t l1, l2, l3, l4;
     memcpy(&l1, buffer, 2); l1 = ntohs(l1);
     req->codereq = l1 >> 11;
-    req->id_groupe = l1 & 0x07FF;
+    req->id_client = l1 & 0x07FF;
 
     memcpy(&l2, buffer + 2, 2); l2 = ntohs(l2);
-    req->id_client = l2 >> 5;
+    req->id_groupe = l2 >> 5;
 
     memcpy(&l3, buffer + 4, 2); 
     req->numb = ntohs(l3);
@@ -218,7 +219,10 @@ void deserialize_repondre_billet_req(const uint8_t *buffer, req_repondre_billet_
     memcpy(&l4, buffer + 6, 2); 
     req->len = ntohs(l4);
 
-    memset(req->data, 0, 2048);
+    if (req->len > sizeof(req->data)) {
+        req->len = sizeof(req->data); 
+    }
+    memset(req->data, 0, sizeof(req->data));
     memcpy(req->data, buffer + 8, req->len); 
 }
 
@@ -227,16 +231,13 @@ void serialize_repondre_billet_resp(const rep_repondre_billet_t *rep, uint8_t *b
     uint16_t l1 = htons((rep->codereq << 11) | (rep->id_groupe & 0x07FF));
     memcpy(buffer, &l1, 2);
     
-    uint16_t numb_net = htons(rep->numb);
-    memcpy(buffer + 2, &numb_net, 2);
-    
-    uint16_t numr_net = htons(rep->numr);
-    memcpy(buffer + 4, &numr_net, 2);
+    uint16_t l2 = htons((rep->numb << 5) | (rep->numr & 0x1F));
+    memcpy(buffer + 2, &l2, 2);
 }
 
 //codereq 16
 void deserialize_demander_billets_req(const uint8_t *buffer, req_demander_billets_t *req) {
-    uint16_t l1, l2, numb_net, numr_net;
+    uint16_t l1, l2, l3;
     memcpy(&l1, buffer, 2); l1 = ntohs(l1);
     req->codereq = l1 >> 11;
     req->id_groupe = l1 & 0x07FF;
@@ -244,9 +245,7 @@ void deserialize_demander_billets_req(const uint8_t *buffer, req_demander_billet
     memcpy(&l2, buffer + 2, 2); l2 = ntohs(l2);
     req->id_client = l2 >> 5;
 
-    memcpy(&numb_net, buffer + 4, 2);
-    req->numb = ntohs(numb_net);
-
-    memcpy(&numr_net, buffer + 6, 2);
-    req->numr = ntohs(numr_net);
+    memcpy(&l3, buffer + 4, 2); l3 = ntohs(l3);
+    req->numb = l3 >> 5;
+    req->numr = l3 & 0x1F;
 }
