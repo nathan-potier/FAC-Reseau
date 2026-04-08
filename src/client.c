@@ -36,6 +36,7 @@ int main() {
     printf("li (lister les invités)\n"); // lister les invités
     printf("join <id_groupe>\n");
     printf("decline <id_groupe>\n");
+    printf("leave <id_groupe>\n");
     printf("members <id_groupe> (0 pour tous)\n");
     printf("post <id_groupe> <message>\n");
     printf("quit\n");
@@ -65,10 +66,15 @@ int main() {
         } else if (strncmp(commande, "decline ", 8) == 0) {
             cmd_decline(commande + 8, mon_id);
 
+        } else if (strncmp(commande, "leave ", 6) == 0) { 
+            cmd_leave(commande + 6, mon_id);
+
         } else if (strncmp(commande, "members ", 8) == 0) {
             cmd_members(commande + 8, mon_id);
+
         } else if (strncmp(commande, "post ", 5) == 0) {
             cmd_post(commande + 5, mon_id);
+            
         }else{
             if (strlen(commande) > 0) printf("Commande inconnue.\n");
         }

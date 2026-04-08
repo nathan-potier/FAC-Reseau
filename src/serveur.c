@@ -191,6 +191,13 @@ void *serve(void *arg) {
             deserialize_inviter_req(buffer_reception, &req);
 
             pthread_mutex_lock(&mutex_annuaire);
+            int idx_groupe = req.id_groupe - 1;
+            if (req.id_groupe == 0 || req.id_groupe > nb_groupes || groupes[idx_groupe].id_admin != req.id_client) {
+                pthread_mutex_unlock(&mutex_annuaire);
+                envoyer_erreur_tcp(sockclient, "Erreur : Seul l'administrateur peut inviter des membres.");
+                break;
+            }
+
             for (int i = 0; i < req.nb; i++) {
                 if (nb_invitations < MAX_INVITATIONS) {
                     // Ajout dans le tableau des invitations
@@ -244,28 +251,47 @@ void *serve(void *arg) {
             pthread_mutex_lock(&mutex_annuaire);
 
             // Supprimer l'invitation en attente
+            int est_invite = 0;
             for (int i = 0; i < nb_invitations; i++) {
                 if (invitations[i].id_invite == req.id_client && invitations[i].id_groupe == req.id_groupe) {
                     invitations[i] = invitations[nb_invitations - 1]; 
                     nb_invitations--;
+                    est_invite = 1;
                     break;
                 }
+            }
+
+            //Rejoindre sans invitation
+            if (req.an == 1 && !est_invite) {
+                pthread_mutex_unlock(&mutex_annuaire);
+                envoyer_erreur_tcp(sockclient, "Action refusee : Vous n'avez pas d'invitation.");
+                break;
             }
 
             // Traitement selon l'action
             if (req.an == 1) { // Accepte AN = 1
                 int idx_groupe = -1;
-                for (int i = 0; i < nb_groupes; i++) {
-                    if (groupes[i].id_groupe == req.id_groupe) {
-                        idx_groupe = i;
-                        // Ajout de l'utilisateur dans les membres
-                        groupes[i].membres[groupes[i].nb_membres] = req.id_client;
-                        groupes[i].nb_membres++;
-                        break;
-                    }
+                if (req.id_groupe > 0 && req.id_groupe <= nb_groupes) {
+                    idx_groupe = req.id_groupe - 1;
                 }
 
                 if (idx_groupe != -1) {
+                    int deja_membre = 0;
+                    for (int i = 0; i < groupes[idx_groupe].nb_membres; i++) {
+                        if (groupes[idx_groupe].membres[i] == req.id_client) {
+                            deja_membre = 1; break;
+                        }
+                    }
+
+                    if (deja_membre) {
+                        pthread_mutex_unlock(&mutex_annuaire);
+                        envoyer_erreur_tcp(sockclient, "Action refusee : Vous etes deja membre de ce groupe.");
+                        break;
+                    }
+
+                    groupes[idx_groupe].membres[groupes[idx_groupe].nb_membres] = req.id_client;
+                    groupes[idx_groupe].nb_membres++;
+
                     rep_action_invitation_acceptee_t rep;
                     rep.codereq = 9;
                     rep.id_groupe = req.id_groupe;
@@ -276,11 +302,9 @@ void *serve(void *arg) {
                     for (int i = 0; i < groupes[idx_groupe].nb_membres; i++) {
                         rep.id_membres[i] = groupes[idx_groupe].membres[i];
                         memset(rep.nom_membres[i], 0, 10);
-                        for (int j = 0; j < nb_inscrits; j++) {
-                            if (annuaire[j].id == rep.id_membres[i]) {
-                                strncpy(rep.nom_membres[i], annuaire[j].pseudo, 10);
-                                break;
-                            }
+                        uint16_t id_recherche = rep.id_membres[i];
+                        if (id_recherche > 0 && id_recherche <= nb_inscrits) {
+                            strncpy(rep.nom_membres[i], annuaire[id_recherche - 1].pseudo, 10);
                         }
                     }
 
@@ -319,6 +343,14 @@ void *serve(void *arg) {
                         } 
                         // CODEREQ(20) + IDG
                         else {
+                            for (int k = 0; k < groupes[idx_groupe].nb_membres; k++) {
+                                if (groupes[idx_groupe].membres[k] == req.id_client) {
+                                    // On remplace sa case par le dernier membre du tableau pour boucher le trou
+                                    groupes[idx_groupe].membres[k] = groupes[idx_groupe].membres[groupes[idx_groupe].nb_membres - 1];
+                                    groupes[idx_groupe].nb_membres--;
+                                    break;
+                                }
+                            }
                             uint16_t notif_leave = htons((20 << 11) | (req.id_groupe & 0x07FF));
                             envoyer_message_udp_ipv6(ip_str, groupes[idx_groupe].port_mdiff, (const uint8_t *)&notif_leave, 2);
                         }
@@ -333,6 +365,28 @@ void *serve(void *arg) {
             my_recv(sockclient, buffer_reception + 2, 2); 
             req_demander_membres_t req;
             deserialize_lister_membres_req(buffer_reception, &req);
+
+            //vérif est membre du gorupe
+            pthread_mutex_lock(&mutex_annuaire);
+            int est_membre = 0;
+            if (req.id_groupe == 0) {
+                est_membre = 1; // L'annuaire global est public
+            } else {
+                int idx_groupe = req.id_groupe - 1;
+                if (req.id_groupe > 0 && req.id_groupe <= nb_groupes && groupes[idx_groupe].id_groupe == req.id_groupe) {
+                    for (int i = 0; i < groupes[idx_groupe].nb_membres; i++) {
+                        if (groupes[idx_groupe].membres[i] == req.id_client) {
+                            est_membre = 1; break;
+                        }
+                    }
+                }
+            }
+            pthread_mutex_unlock(&mutex_annuaire);
+
+            if (!est_membre) {
+                envoyer_erreur_tcp(sockclient, "Erreur : Vous devez etre membre du groupe pour poster.");
+                break;
+            }
 
             rep_demander_membres_t rep;
             rep.codereq = 11;
@@ -361,11 +415,9 @@ void *serve(void *arg) {
                         rep.id_membres[i] = groupes[idx_groupe].membres[i];
                         memset(rep.nom_membres[i], 0, 10);
                         // Cherche le pseudo correspondant à l'ID
-                        for (int j = 0; j < nb_inscrits; j++) {
-                            if (annuaire[j].id == rep.id_membres[i]) {
-                                strncpy(rep.nom_membres[i], annuaire[j].pseudo, 10);
-                                break;
-                            }
+                        uint16_t id_recherche = rep.id_membres[i];
+                        if (id_recherche > 0 && id_recherche <= nb_inscrits) {
+                            strncpy(rep.nom_membres[i], annuaire[id_recherche - 1].pseudo, 10);
                         }
                     }
                 }
@@ -386,6 +438,25 @@ void *serve(void *arg) {
             my_recv(sockclient, buffer_reception + 6, len);
             req_poster_billet_t req;
             deserialize_poster_billet_req(buffer_reception, &req);
+
+            //vérif est membre du gorupe
+            pthread_mutex_lock(&mutex_annuaire);
+            int est_membre = 0;
+            int idx_groupe = req.id_groupe - 1;
+            if (req.id_groupe > 0 && req.id_groupe <= nb_groupes && groupes[idx_groupe].id_groupe == req.id_groupe) {
+                for (int i = 0; i < groupes[idx_groupe].nb_membres; i++) {
+                    if (groupes[idx_groupe].membres[i] == req.id_client) {
+                        est_membre = 1; break;
+                    }
+                }
+            }
+            pthread_mutex_unlock(&mutex_annuaire);
+
+            if (!est_membre) {
+                envoyer_erreur_tcp(sockclient, "Erreur : Vous devez etre membre du groupe pour poster.");
+                break;
+            }
+
             rep_poster_billet_t rep;
             rep.codereq = 13;
             rep.id_groupe = req.id_groupe;
@@ -439,6 +510,24 @@ void *serve(void *arg) {
             req_repondre_billet_t req;
             deserialize_repondre_billet_req(buffer_reception, &req);
 
+            //vérif est membre du gorupe
+            pthread_mutex_lock(&mutex_annuaire);
+            int est_membre = 0;
+            int idx_groupe = req.id_groupe - 1;
+            if (req.id_groupe > 0 && req.id_groupe <= nb_groupes && groupes[idx_groupe].id_groupe == req.id_groupe) {
+                for (int i = 0; i < groupes[idx_groupe].nb_membres; i++) {
+                    if (groupes[idx_groupe].membres[i] == req.id_client) {
+                        est_membre = 1; break;
+                    }
+                }
+            }
+            pthread_mutex_unlock(&mutex_annuaire);
+
+            if (!est_membre) {
+                envoyer_erreur_tcp(sockclient, "Erreur : Vous devez etre membre du groupe pour poster.");
+                break;
+            }
+
             rep_repondre_billet_t rep;
             rep.codereq = 15;
             rep.id_groupe = req.id_groupe;
@@ -485,6 +574,24 @@ void *serve(void *arg) {
             my_recv(sockclient, buffer_reception + 2, 4); 
             req_demander_billets_t req;
             deserialize_demander_billets_req(buffer_reception, &req);
+
+            //vérif est membre du gorupe
+            pthread_mutex_lock(&mutex_annuaire);
+            int est_membre = 0;
+            int idx_groupe = req.id_groupe - 1;
+            if (req.id_groupe > 0 && req.id_groupe <= nb_groupes && groupes[idx_groupe].id_groupe == req.id_groupe) {
+                for (int i = 0; i < groupes[idx_groupe].nb_membres; i++) {
+                    if (groupes[idx_groupe].membres[i] == req.id_client) {
+                        est_membre = 1; break;
+                    }
+                }
+            }
+            pthread_mutex_unlock(&mutex_annuaire);
+
+            if (!est_membre) {
+                envoyer_erreur_tcp(sockclient, "Erreur : Vous devez etre membre du groupe pour poster.");
+                break;
+            }
 
             pthread_mutex_lock(&mutex_messages);
 

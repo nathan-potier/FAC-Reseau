@@ -322,6 +322,19 @@ void cmd_decline(char *id_groupe_str, uint16_t mon_id) {
     }
 }
 
+void cmd_leave(char *id_groupe_str, uint16_t mon_id) {
+    // an = 2  quitter le groupe 
+    req_action_invitation_t req_act = { .codereq = 8, .id_client = mon_id, .an = 2 };
+    req_act.id_groupe = (uint16_t)atoi(id_groupe_str);
+
+    uint8_t buffer_cmd[512], buffer_rep[512];
+    size_t taille_msg = serialize_action_invitation(&req_act, buffer_cmd);
+
+    if (envoyer_requete_tcp(buffer_cmd, taille_msg, buffer_rep, sizeof(buffer_rep), 0) > 0) {
+        printf("Tu as quitté le groupe %u avec succès.\n", req_act.id_groupe);
+    }
+}
+
 void cmd_members(char *id_groupe_str, uint16_t mon_id) {
     req_demander_membres_t req_mem = { .codereq = 10, .id_client = mon_id };
     req_mem.id_groupe = (uint16_t)atoi(id_groupe_str);
