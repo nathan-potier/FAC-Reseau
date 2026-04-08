@@ -38,6 +38,8 @@ int main() {
     printf("decline <id_groupe>\n");
     printf("members <id_groupe> (0 pour tous)\n");
     printf("post <id_groupe> <message>\n");
+    printf("reply <id_groupe> <id_billet> <message>\n");
+    printf("history <id_groupe> [num_billet] [num_reponse]\n");
     printf("quit\n");
     printf("============\n\n");
 
@@ -69,6 +71,10 @@ int main() {
             cmd_members(commande + 8, mon_id);
         } else if (strncmp(commande, "post ", 5) == 0) {
             cmd_post(commande + 5, mon_id);
+        } else if (strncmp(commande, "reply ", 6) == 0) {
+            cmd_reply(commande + 6, mon_id);
+        } else if (strncmp(commande, "history ", 8) == 0) {
+            cmd_history(commande + 8, mon_id);
         }else{
             if (strlen(commande) > 0) printf("Commande inconnue.\n");
         }

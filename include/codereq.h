@@ -118,4 +118,48 @@ typedef struct {
     uint16_t numb;        // Numéro du billet donné par le serveur (16 bits)
 } rep_poster_billet_t;
 
+// CODEREQ = 14 Répondre à un billet
+typedef struct {
+    uint8_t codereq;
+    uint16_t id_client; //11 bits
+    uint16_t id_groupe; //11 bits
+    uint16_t numb; //11 btis
+    uint16_t len; //16bits     
+    char data[2048];
+} req_repondre_billet_t;
+
+// CODEREQ = 15 Réponse suite à une réponse de billet
+typedef struct {
+    uint8_t codereq;      
+    uint16_t id_groupe; //11 bits    
+    uint16_t numb; // 11 bits
+    uint8_t numr;    // 5bits
+} rep_repondre_billet_t;
+
+// CODEREQ = 16 Demander les derniers billets d'un groupe
+typedef struct {
+    uint8_t codereq;      
+    uint16_t id_groupe;  //11       
+    uint16_t id_client;   //11
+    uint16_t numb;        //11
+    uint8_t numr;        //5
+} req_demander_billets_t;
+
+
+// Sous-structure pour un billet de l'historique
+typedef struct {
+    uint16_t id_auteur;
+    uint16_t numb;
+    uint8_t numr;
+    uint16_t len;
+    char data[2048]; 
+} billet_historique_t;
+
+// CODEREQ = 17 Réponse avec l'historique
+typedef struct {
+    uint8_t codereq;      
+    uint16_t idg;         
+    uint16_t nb;
+    billet_historique_t billets[50]; // Limite de 50 billets
+} rep_historique_t;
 #endif

@@ -248,7 +248,7 @@ size_t serialize_poster_billet(const req_poster_billet_t *req, uint8_t *buffer) 
     ligne2 = htons(ligne2);
     memcpy(buffer + 2, &ligne2, 2);
 
-    // LEN (2 octet)
+    // LEN (2 octets)
     uint16_t len_net = htons(req->len);
     memcpy(buffer + 4, &len_net, 2);
 
@@ -266,8 +266,118 @@ void deserialize_poster_billet_resp(const uint8_t *buffer, rep_poster_billet_t *
     rep->codereq = ligne1 >> 11;
     rep->idg = ligne1 & 0x07FF;
 
-    // NUMB (16 bits)
+    // NUMB (11 bits) + ZEROS (5 bits)
     uint16_t ligne2;
     memcpy(&ligne2, buffer + 2, 2);
-    rep->numb = ntohs(ligne2);
+    ligne2 = ntohs(ligne2);
+    rep->numb = ligne2 >> 5; // 5 bits de zéros à droite
+}
+
+size_t serialize_repondre_billet(const req_repondre_billet_t *req, uint8_t *buffer) {
+    // CODEREQ (5 bits) + ID (11 bits)
+    uint16_t ligne1 = (req->codereq << 11) | (req->id_client & 0x07FF);
+    ligne1 = htons(ligne1);
+    memcpy(buffer, &ligne1, 2);
+
+    // IDG (11 bits) + ZEROS (5 bits)
+    uint16_t ligne2 = (req->id_groupe << 5) | 0;
+    ligne2 = htons(ligne2);
+    memcpy(buffer + 2, &ligne2, 2);
+
+    // NUMB (11 bits) + ZEROS (5 bits)
+    uint16_t ligne3 = (req->numb << 5) | 0;
+    ligne3 = htons(ligne3);
+    memcpy(buffer + 4, &ligne3, 2);
+
+    // LEN (16 bits)
+    uint16_t len_net = htons(req->len);
+    memcpy(buffer + 6, &len_net, 2);
+
+    // DATA (Commence à l'octet 8)
+    memcpy(buffer + 8, req->data, req->len);
+
+    return 8 + req->len; // 8 octets d'en-tête + taille du texte
+}
+
+void deserialize_repondre_billet_resp(const uint8_t *buffer, rep_repondre_billet_t *rep) {
+    // CODEREQ (5 bits) + IDG (11 bits)
+    uint16_t ligne1;
+    memcpy(&ligne1, buffer, 2);
+    ligne1 = ntohs(ligne1);
+    rep->codereq = ligne1 >> 11;
+    rep->id_groupe = ligne1 & 0x07FF;
+
+    // NUMB (11 bits) + NUMR (5 bits)
+    uint16_t ligne2;
+    memcpy(&ligne2, buffer + 2, 2);
+    ligne2 = ntohs(ligne2);
+    rep->numb = ligne2 >> 5;
+    rep->numr = ligne2 & 0x1F; // 0x1F = 11111
+}
+
+size_t serialize_demander_billets(const req_demander_billets_t *req, uint8_t *buffer) {
+    // Ligne 1 : CODEREQ (5 bits) + ID_CLIENT (11 bits)
+    uint16_t ligne1 = (req->codereq << 11) | (req->id_client & 0x07FF);
+    ligne1 = htons(ligne1);
+    memcpy(buffer, &ligne1, 2);
+
+    // Ligne 2 : IDG (11 bits) + ZEROS (5 bits)
+    uint16_t ligne2 = (req->id_groupe << 5) | 0;
+    ligne2 = htons(ligne2);
+    memcpy(buffer + 2, &ligne2, 2);
+
+    // Ligne 3 : NUMB (11 bits) + NUMR (5 bits)
+    uint16_t ligne3 = (req->numb << 5) | (req->numr & 0x1F);
+    ligne3 = htons(ligne3);
+    memcpy(buffer + 4, &ligne3, 2);
+
+    return 6; // La requête fait exactement 6 octets
+}
+
+void deserialize_historique_resp(const uint8_t *buffer, rep_historique_t *rep) {
+    // CODEREQ + IDG
+    uint16_t ligne1;
+    memcpy(&ligne1, buffer, 2);
+    ligne1 = ntohs(ligne1);
+    rep->codereq = ligne1 >> 11;
+    rep->idg = ligne1 & 0x07FF;
+
+    // NB (16 bits)
+    uint16_t ligne2;
+    memcpy(&ligne2, buffer + 2, 2);
+    rep->nb = ntohs(ligne2);
+
+    size_t decalage = 4;
+    
+    for (int i = 0; i < rep->nb; i++) {
+        // Auteur (11 bits) + ZEROS
+        uint16_t l_id;
+        memcpy(&l_id, buffer + decalage, 2);
+        l_id = ntohs(l_id);
+        rep->billets[i].id_auteur = l_id >> 5;
+        decalage += 2;
+
+        // NUMB (11 bits) + NUMR (5 bits)
+        uint16_t l_num;
+        memcpy(&l_num, buffer + decalage, 2);
+        l_num = ntohs(l_num);
+        rep->billets[i].numb = l_num >> 5;
+        rep->billets[i].numr = l_num & 0x1F;
+        decalage += 2;
+
+        // LEN (16 bits)
+        uint16_t l_len;
+        memcpy(&l_len, buffer + decalage, 2);
+        rep->billets[i].len = ntohs(l_len);
+        decalage += 2;
+
+        // DATA
+        uint16_t copie_len = rep->billets[i].len;
+        if (copie_len > 2047) copie_len = 2047; // Place pour le '\0'
+        
+        memset(rep->billets[i].data, 0, 2048);
+        memcpy(rep->billets[i].data, buffer + decalage, copie_len);
+        
+        decalage += rep->billets[i].len;
+    }
 }

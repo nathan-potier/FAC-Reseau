@@ -473,3 +473,110 @@ void cmd_post(char *args, uint16_t mon_id) {
         }
     }
 }
+
+void cmd_reply(char *args, uint16_t mon_id) {
+    req_repondre_billet_t req = { .codereq = 14, .id_client = mon_id };
+    char *ptr = args;
+    char *endptr;
+
+    // ID Groupe
+    long id_groupe = strtol(ptr, &endptr, 10);
+    if (ptr == endptr || *endptr != ' ') {
+        printf("Erreur de format. Usage: reply <id_groupe> <id_billet> <message>\n");
+        return;
+    }
+    req.id_groupe = (uint16_t)id_groupe;
+
+    // ID Billet
+    ptr = endptr + 1; // On passe l'espace
+    long id_billet = strtol(ptr, &endptr, 10);
+    if (ptr == endptr || *endptr != ' ') {
+        printf("Erreur de format. Usage: reply <id_groupe> <id_billet> <message>\n");
+        return;
+    }
+    req.numb = (uint16_t)id_billet;
+
+    // Message
+    char *message = endptr + 1;
+    size_t len = strlen(message);
+    if (len == 0) {
+        printf("Erreur : Le message ne peut pas être vide.\n");
+        return;
+    }
+    
+    if (len > 2048) {
+        req.len = 2048;
+    } else {
+        req.len = (uint16_t)len;
+    }
+    memset(req.data, 0, sizeof(req.data));
+    strncpy(req.data, message, req.len);
+
+    uint8_t buffer_cmd[2500], buffer_rep[512]; 
+    size_t taille_msg = serialize_repondre_billet(&req, buffer_cmd);
+
+    // 4 octets pour le CODEREQ 15
+    int recu = envoyer_requete_tcp(buffer_cmd, taille_msg, buffer_rep, sizeof(buffer_rep), 4);
+    
+    if (recu >= 4) {
+        rep_repondre_billet_t rep;
+        deserialize_repondre_billet_resp(buffer_rep, &rep);
+
+        if (rep.codereq == 15) {
+            printf("\nRéponse n°%u postée avec succès sur le billet %u du groupe %u !\n\n", rep.numr, rep.numb, rep.id_groupe);
+        } else {
+            printf("Erreur : Le serveur a répondu avec un code inattendu (%u).\n", rep.codereq);
+        }
+    }
+}
+
+void cmd_history(char *args, uint16_t mon_id) {
+    req_demander_billets_t req = { .codereq = 16, .id_client = mon_id, .numb = 0, .numr = 0 };
+    char *ptr = args, *endptr;
+
+    // ID groupe
+    long id_groupe = strtol(ptr, &endptr, 10);
+    if (ptr == endptr) {
+        printf("Erreur de format. Usage: history <id_groupe> [num_billet] [num_reponse]\n");
+        return;
+    }
+    req.id_groupe = (uint16_t)id_groupe;
+
+    uint8_t buffer_cmd[16];
+
+    uint8_t *buffer_rep = malloc(65536); // 2^16 = 64 Ko
+    if (buffer_rep == NULL) {
+        printf("Erreur d'allocation mémoire pour l'historique.\n");
+        return;
+    }
+
+    size_t taille_msg = serialize_demander_billets(&req, buffer_cmd);
+
+    int recu = envoyer_requete_tcp(buffer_cmd, taille_msg, buffer_rep, 65536, 0);
+    
+    if (recu >= 4) {
+        rep_historique_t rep;
+        memset(&rep, 0, sizeof(rep));
+        deserialize_historique_resp(buffer_rep, &rep);
+
+        if (rep.codereq == 17) {
+            printf("\n--- HISTORIQUE DU GROUPE %u (%u messages) ---\n", rep.idg, rep.nb);
+            
+            for (int i = 0; i < rep.nb; i++) {
+                if (rep.billets[i].numr == 0) {
+                    printf("[Billet n°%u] (Auteur %u) : %s\n", 
+                           rep.billets[i].numb, rep.billets[i].id_auteur, rep.billets[i].data);
+                } else {
+                    printf(" -> [Réponse n°%u au Billet %u] (Auteur %u) : %s\n", 
+                           rep.billets[i].numr, rep.billets[i].numb, rep.billets[i].id_auteur, rep.billets[i].data);
+                }
+            }
+            if (rep.nb == 0) printf("Aucun message à afficher.\n");
+            
+            printf("----------------------------------------------\n\n");
+        } else {
+            printf("Erreur : Le serveur a répondu avec un code inattendu (%u).\n", rep.codereq);
+        }
+    }
+    free(buffer_rep);
+}
