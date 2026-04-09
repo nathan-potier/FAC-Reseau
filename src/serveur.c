@@ -575,23 +575,23 @@ void *serve(void *arg) {
             req_demander_billets_t req;
             deserialize_demander_billets_req(buffer_reception, &req);
 
-            // //vérif est membre du gorupe
-            // pthread_mutex_lock(&mutex_annuaire);
-            // int est_membre = 0;
-            // int idx_groupe = req.id_groupe - 1;
-            // if (req.id_groupe > 0 && req.id_groupe <= nb_groupes && groupes[idx_groupe].id_groupe == req.id_groupe) {
-            //     for (int i = 0; i < groupes[idx_groupe].nb_membres; i++) {
-            //         if (groupes[idx_groupe].membres[i] == req.id_client) {
-            //             est_membre = 1; break;
-            //         }
-            //     }
-            // }
-            // pthread_mutex_unlock(&mutex_annuaire);
+            //vérif est membre du gorupe
+            pthread_mutex_lock(&mutex_annuaire);
+            int est_membre = 0;
+            int idx_groupe = req.id_groupe - 1;
+            if (req.id_groupe > 0 && req.id_groupe <= nb_groupes && groupes[idx_groupe].id_groupe == req.id_groupe) {
+                for (int i = 0; i < groupes[idx_groupe].nb_membres; i++) {
+                    if (groupes[idx_groupe].membres[i] == req.id_client) {
+                        est_membre = 1; break;
+                    }
+                }
+            }
+            pthread_mutex_unlock(&mutex_annuaire);
 
-            // if (!est_membre) {
-            //     envoyer_erreur_tcp(sockclient, "Erreur : Vous devez etre membre du groupe pour poster.");
-            //     break;
-            // }
+            if (!est_membre) {
+                envoyer_erreur_tcp(sockclient, "Erreur : Vous devez etre membre du groupe pour poster.");
+                break;
+            }
 
             pthread_mutex_lock(&mutex_messages);
 
@@ -631,6 +631,14 @@ void *serve(void *arg) {
                     // L6 : data1 (0-...)
                     memcpy(buffer_historique + offset, historique[i].contenu, historique[i].len);
                     offset += historique[i].len;
+
+                    if (historique[i].id_auteur != req.id_client) {
+                        if (historique[i].id_auteur > 0 && historique[i].id_auteur <= nb_inscrits) {
+                            uint16_t port_auteur = annuaire[historique[i].id_auteur - 1].port_udp;
+                            uint16_t notif_read = htons((23 << 11) | (req.id_groupe & 0x07FF));
+                            envoyer_message_udp_ipv6(ADRESSE_LOCALE, port_auteur, (const uint8_t *)&notif_read, 2);
+                        }
+                    }
 
                 }
             }

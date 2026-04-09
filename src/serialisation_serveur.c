@@ -182,7 +182,7 @@ void deserialize_poster_billet_req(const uint8_t *buffer, req_poster_billet_t *r
     memcpy(&l2, buffer + 2, 2); l2 = ntohs(l2);
     req->id_groupe = l2 >> 5;
 
-    memcpy(&l3, buffer + 6, 2); 
+    memcpy(&l3, buffer + 4, 2); 
     req->len = ntohs(l3);
 
     if (req->len > sizeof(req->data)) {
@@ -240,10 +240,10 @@ void deserialize_demander_billets_req(const uint8_t *buffer, req_demander_billet
     uint16_t l1, l2, l3;
     memcpy(&l1, buffer, 2); l1 = ntohs(l1);
     req->codereq = l1 >> 11;
-    req->id_groupe = l1 & 0x07FF;
+    req->id_client = l1 & 0x07FF;
 
     memcpy(&l2, buffer + 2, 2); l2 = ntohs(l2);
-    req->id_client = l2 >> 5;
+    req->id_groupe = l2 >> 5;
 
     memcpy(&l3, buffer + 4, 2); l3 = ntohs(l3);
     req->numb = l3 >> 5;

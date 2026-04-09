@@ -544,7 +544,7 @@ void cmd_reply(char *args, uint16_t mon_id) {
 }
 
 void cmd_history(char *args, uint16_t mon_id) {
-    req_demander_billets_t req = { .codereq = 16, .id_client = mon_id, .numb = 0, .numr = 0 };
+    req_demander_billets_t req = { .codereq = 16, .id_client = mon_id, .numb = 2047, .numr = 0 };
     char *ptr = args, *endptr;
 
     // ID groupe
@@ -554,6 +554,18 @@ void cmd_history(char *args, uint16_t mon_id) {
         return;
     }
     req.id_groupe = (uint16_t)id_groupe;
+
+    // Si l'utilisateur précise un numéro de billet (ex: history 1 0)
+    if (*endptr == ' ') {
+        long numb = strtol(endptr + 1, &endptr, 10);
+        req.numb = (uint16_t)numb;
+        
+        // S'il précise aussi un numéro de réponse (ex: history 1 0 1)
+        if (*endptr == ' ') {
+            long numr = strtol(endptr + 1, &endptr, 10);
+            req.numr = (uint16_t)numr;
+        }
+    }
 
     uint8_t buffer_cmd[16];
 
