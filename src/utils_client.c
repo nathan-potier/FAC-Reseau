@@ -573,7 +573,7 @@ void cmd_history(char *args, uint16_t mon_id) {
         deserialize_historique_resp(buffer_rep, &rep);
 
         if (rep.codereq == 17) {
-            printf("\n--- HISTORIQUE DU GROUPE %u (%u messages) ---\n", rep.idg, rep.nb);
+            printf("\n--- HISTORIQUE DU GROUPE %u (%u messages) ---\n", rep.id_groupe, rep.nb);
             
             for (int i = 0; i < rep.nb; i++) {
                 if (rep.billets[i].numr == 0) {

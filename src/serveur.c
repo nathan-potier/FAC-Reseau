@@ -575,23 +575,23 @@ void *serve(void *arg) {
             req_demander_billets_t req;
             deserialize_demander_billets_req(buffer_reception, &req);
 
-            //vérif est membre du gorupe
-            pthread_mutex_lock(&mutex_annuaire);
-            int est_membre = 0;
-            int idx_groupe = req.id_groupe - 1;
-            if (req.id_groupe > 0 && req.id_groupe <= nb_groupes && groupes[idx_groupe].id_groupe == req.id_groupe) {
-                for (int i = 0; i < groupes[idx_groupe].nb_membres; i++) {
-                    if (groupes[idx_groupe].membres[i] == req.id_client) {
-                        est_membre = 1; break;
-                    }
-                }
-            }
-            pthread_mutex_unlock(&mutex_annuaire);
+            // //vérif est membre du gorupe
+            // pthread_mutex_lock(&mutex_annuaire);
+            // int est_membre = 0;
+            // int idx_groupe = req.id_groupe - 1;
+            // if (req.id_groupe > 0 && req.id_groupe <= nb_groupes && groupes[idx_groupe].id_groupe == req.id_groupe) {
+            //     for (int i = 0; i < groupes[idx_groupe].nb_membres; i++) {
+            //         if (groupes[idx_groupe].membres[i] == req.id_client) {
+            //             est_membre = 1; break;
+            //         }
+            //     }
+            // }
+            // pthread_mutex_unlock(&mutex_annuaire);
 
-            if (!est_membre) {
-                envoyer_erreur_tcp(sockclient, "Erreur : Vous devez etre membre du groupe pour poster.");
-                break;
-            }
+            // if (!est_membre) {
+            //     envoyer_erreur_tcp(sockclient, "Erreur : Vous devez etre membre du groupe pour poster.");
+            //     break;
+            // }
 
             pthread_mutex_lock(&mutex_messages);
 

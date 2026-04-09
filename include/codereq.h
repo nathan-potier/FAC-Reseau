@@ -158,7 +158,7 @@ typedef struct {
 // CODEREQ = 17 Réponse avec l'historique
 typedef struct {
     uint8_t codereq;      
-    uint16_t idg;         
+    uint16_t id_groupe;         
     uint16_t nb;
     billet_historique_t billets[50]; // Limite de 50 billets
 } rep_historique_t;

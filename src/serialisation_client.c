@@ -340,7 +340,7 @@ void deserialize_historique_resp(const uint8_t *buffer, rep_historique_t *rep) {
     memcpy(&ligne1, buffer, 2);
     ligne1 = ntohs(ligne1);
     rep->codereq = ligne1 >> 11;
-    rep->idg = ligne1 & 0x07FF;
+    rep->id_groupe = ligne1 & 0x07FF;
 
     // NB (16 bits)
     uint16_t ligne2;
