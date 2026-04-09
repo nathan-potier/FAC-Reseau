@@ -50,4 +50,16 @@ size_t serialize_poster_billet(const req_poster_billet_t *req, uint8_t *buffer);
 
 // CODEREQ = 13
 void deserialize_poster_billet_resp(const uint8_t *buffer, rep_poster_billet_t *rep);
+
+// CODEREQ = 14
+size_t serialize_repondre_billet(const req_repondre_billet_t *req, uint8_t *buffer);
+
+// CODEREQ = 15
+void deserialize_repondre_billet_resp(const uint8_t *buffer, rep_repondre_billet_t *rep);
+
+// CODEREQ = 16
+size_t serialize_demander_billets(const req_demander_billets_t *req, uint8_t *buffer);
+
+// CODEREQ = 17
+void deserialize_historique_resp(const uint8_t *buffer, rep_historique_t *rep);
 #endif
