@@ -15,6 +15,7 @@
 #define MAX_GROUPES 50
 #define MAX_INVITATIONS 150
 #define ADRESSE_LOCALE "::1"
+#define MAX_MESSAGES 2000
 
 // Représentation interne d'un utilisateur côté serveur
 typedef struct {
@@ -56,14 +57,34 @@ uint16_t nb_invitations = 0;
 //Mutex empêchant plusieurs threads de modifier l'annuaire simultanément 
 pthread_mutex_t mutex_annuaire = PTHREAD_MUTEX_INITIALIZER;
 
+// struct message
+typedef struct {
+    uint16_t id_groupe;    // groupe
+    uint16_t id_auteur;    // auteur
+    uint16_t numb;         // num
+    uint16_t numr;         // num rep
+    uint16_t len;           // taille msg
+    char contenu[2048];     // text msg
+} message_t;
+
+// BDD qui conserve l'ordre de réception
+message_t historique[MAX_MESSAGES];
+uint16_t nb_messages = 0;
+
+
+uint16_t compteurs_numb[MAX_GROUPES]; 
+uint16_t compteurs_numr[MAX_GROUPES][500];
+// Mutex pour protéger l'accès concurrent aux messages
+pthread_mutex_t mutex_messages = PTHREAD_MUTEX_INITIALIZER;
+
 // Routine exécutée indépendamment par chaque thread 
 void *serve(void *arg) {
     // Récupération de la socket 
     int sockclient = *((int *)arg);
     free(arg); 
 
-    uint8_t buffer_reception[512]; 
-    uint8_t buffer_envoi[512];
+    uint8_t buffer_reception[4096]; 
+    uint8_t buffer_envoi[4096];
 
     struct timeval tv;
     tv.tv_sec = 120; // 120 secondes d'attente max
@@ -82,6 +103,8 @@ void *serve(void *arg) {
     entete = ntohs(entete);
     uint8_t codereq = entete >> 11;
 
+
+    //A FACTORISER QUAND ON A LE TEMPS FONCTIONS POUR CHAQUE CODEREQ 
     switch (codereq) {
         case 1: { //Inscription
             my_recv(sockclient, buffer_reception + 2, REQ_INSCRIPTION_SIZE - 2);
@@ -144,7 +167,7 @@ void *serve(void *arg) {
                 generer_adresse_multicast(nouvel_idg, ip_str_temp, groupes[nb_groupes - 1].ip_mdiff);
 
                 reponse.codereq = 4;
-                reponse.idg = nouvel_idg;
+                reponse.id_groupe = nouvel_idg;
                 reponse.portmdiff = groupes[nb_groupes - 1].port_mdiff;
                 memcpy(reponse.ipmdiff, groupes[nb_groupes - 1].ip_mdiff, 16);
             }
@@ -168,6 +191,13 @@ void *serve(void *arg) {
             deserialize_inviter_req(buffer_reception, &req);
 
             pthread_mutex_lock(&mutex_annuaire);
+            int idx_groupe = req.id_groupe - 1;
+            if (req.id_groupe == 0 || req.id_groupe > nb_groupes || groupes[idx_groupe].id_admin != req.id_client) {
+                pthread_mutex_unlock(&mutex_annuaire);
+                envoyer_erreur_tcp(sockclient, "Erreur : Seul l'administrateur peut inviter des membres.");
+                break;
+            }
+
             for (int i = 0; i < req.nb; i++) {
                 if (nb_invitations < MAX_INVITATIONS) {
                     // Ajout dans le tableau des invitations
@@ -221,31 +251,50 @@ void *serve(void *arg) {
             pthread_mutex_lock(&mutex_annuaire);
 
             // Supprimer l'invitation en attente
+            int est_invite = 0;
             for (int i = 0; i < nb_invitations; i++) {
                 if (invitations[i].id_invite == req.id_client && invitations[i].id_groupe == req.id_groupe) {
                     invitations[i] = invitations[nb_invitations - 1]; 
                     nb_invitations--;
+                    est_invite = 1;
                     break;
                 }
+            }
+
+            //Rejoindre sans invitation
+            if (req.an == 1 && !est_invite) {
+                pthread_mutex_unlock(&mutex_annuaire);
+                envoyer_erreur_tcp(sockclient, "Action refusee : Vous n'avez pas d'invitation.");
+                break;
             }
 
             // Traitement selon l'action
             if (req.an == 1) { // Accepte AN = 1
                 int idx_groupe = -1;
-                for (int i = 0; i < nb_groupes; i++) {
-                    if (groupes[i].id_groupe == req.id_groupe) {
-                        idx_groupe = i;
-                        // Ajout de l'utilisateur dans les membres
-                        groupes[i].membres[groupes[i].nb_membres] = req.id_client;
-                        groupes[i].nb_membres++;
-                        break;
-                    }
+                if (req.id_groupe > 0 && req.id_groupe <= nb_groupes) {
+                    idx_groupe = req.id_groupe - 1;
                 }
 
                 if (idx_groupe != -1) {
+                    int deja_membre = 0;
+                    for (int i = 0; i < groupes[idx_groupe].nb_membres; i++) {
+                        if (groupes[idx_groupe].membres[i] == req.id_client) {
+                            deja_membre = 1; break;
+                        }
+                    }
+
+                    if (deja_membre) {
+                        pthread_mutex_unlock(&mutex_annuaire);
+                        envoyer_erreur_tcp(sockclient, "Action refusee : Vous etes deja membre de ce groupe.");
+                        break;
+                    }
+
+                    groupes[idx_groupe].membres[groupes[idx_groupe].nb_membres] = req.id_client;
+                    groupes[idx_groupe].nb_membres++;
+
                     rep_action_invitation_acceptee_t rep;
                     rep.codereq = 9;
-                    rep.idg = req.id_groupe;
+                    rep.id_groupe = req.id_groupe;
                     rep.portmdiff = groupes[idx_groupe].port_mdiff;
                     memcpy(rep.ipmdiff, groupes[idx_groupe].ip_mdiff, 16);
                     rep.nb = groupes[idx_groupe].nb_membres;
@@ -253,11 +302,9 @@ void *serve(void *arg) {
                     for (int i = 0; i < groupes[idx_groupe].nb_membres; i++) {
                         rep.id_membres[i] = groupes[idx_groupe].membres[i];
                         memset(rep.nom_membres[i], 0, 10);
-                        for (int j = 0; j < nb_inscrits; j++) {
-                            if (annuaire[j].id == rep.id_membres[i]) {
-                                strncpy(rep.nom_membres[i], annuaire[j].pseudo, 10);
-                                break;
-                            }
+                        uint16_t id_recherche = rep.id_membres[i];
+                        if (id_recherche > 0 && id_recherche <= nb_inscrits) {
+                            strncpy(rep.nom_membres[i], annuaire[id_recherche - 1].pseudo, 10);
                         }
                     }
 
@@ -296,6 +343,14 @@ void *serve(void *arg) {
                         } 
                         // CODEREQ(20) + IDG
                         else {
+                            for (int k = 0; k < groupes[idx_groupe].nb_membres; k++) {
+                                if (groupes[idx_groupe].membres[k] == req.id_client) {
+                                    // On remplace sa case par le dernier membre du tableau pour boucher le trou
+                                    groupes[idx_groupe].membres[k] = groupes[idx_groupe].membres[groupes[idx_groupe].nb_membres - 1];
+                                    groupes[idx_groupe].nb_membres--;
+                                    break;
+                                }
+                            }
                             uint16_t notif_leave = htons((20 << 11) | (req.id_groupe & 0x07FF));
                             envoyer_message_udp_ipv6(ip_str, groupes[idx_groupe].port_mdiff, (const uint8_t *)&notif_leave, 2);
                         }
@@ -311,9 +366,31 @@ void *serve(void *arg) {
             req_demander_membres_t req;
             deserialize_lister_membres_req(buffer_reception, &req);
 
+            //vérif est membre du gorupe
+            pthread_mutex_lock(&mutex_annuaire);
+            int est_membre = 0;
+            if (req.id_groupe == 0) {
+                est_membre = 1; // L'annuaire global est public
+            } else {
+                int idx_groupe = req.id_groupe - 1;
+                if (req.id_groupe > 0 && req.id_groupe <= nb_groupes && groupes[idx_groupe].id_groupe == req.id_groupe) {
+                    for (int i = 0; i < groupes[idx_groupe].nb_membres; i++) {
+                        if (groupes[idx_groupe].membres[i] == req.id_client) {
+                            est_membre = 1; break;
+                        }
+                    }
+                }
+            }
+            pthread_mutex_unlock(&mutex_annuaire);
+
+            if (!est_membre) {
+                envoyer_erreur_tcp(sockclient, "Erreur : Vous devez etre membre du groupe pour poster.");
+                break;
+            }
+
             rep_demander_membres_t rep;
             rep.codereq = 11;
-            rep.idg = req.id_groupe;
+            rep.id_groupe = req.id_groupe;
             rep.nb = 0;
 
             pthread_mutex_lock(&mutex_annuaire);
@@ -338,11 +415,9 @@ void *serve(void *arg) {
                         rep.id_membres[i] = groupes[idx_groupe].membres[i];
                         memset(rep.nom_membres[i], 0, 10);
                         // Cherche le pseudo correspondant à l'ID
-                        for (int j = 0; j < nb_inscrits; j++) {
-                            if (annuaire[j].id == rep.id_membres[i]) {
-                                strncpy(rep.nom_membres[i], annuaire[j].pseudo, 10);
-                                break;
-                            }
+                        uint16_t id_recherche = rep.id_membres[i];
+                        if (id_recherche > 0 && id_recherche <= nb_inscrits) {
+                            strncpy(rep.nom_membres[i], annuaire[id_recherche - 1].pseudo, 10);
                         }
                     }
                 }
@@ -351,6 +426,224 @@ void *serve(void *arg) {
 
             size_t taille = serialize_lister_membres_resp(&rep, buffer_envoi);
             my_send(sockclient, buffer_envoi, taille);
+            break;
+        }
+
+        case 12: { // Poster un nouveau billet
+            my_recv(sockclient, buffer_reception + 2, 4); 
+            uint16_t len_net;
+            memcpy(&len_net, buffer_reception + 4, 2);
+            uint16_t len = ntohs(len_net);
+            
+            my_recv(sockclient, buffer_reception + 6, len);
+            req_poster_billet_t req;
+            deserialize_poster_billet_req(buffer_reception, &req);
+
+            //vérif est membre du gorupe
+            pthread_mutex_lock(&mutex_annuaire);
+            int est_membre = 0;
+            int idx_groupe = req.id_groupe - 1;
+            if (req.id_groupe > 0 && req.id_groupe <= nb_groupes && groupes[idx_groupe].id_groupe == req.id_groupe) {
+                for (int i = 0; i < groupes[idx_groupe].nb_membres; i++) {
+                    if (groupes[idx_groupe].membres[i] == req.id_client) {
+                        est_membre = 1; break;
+                    }
+                }
+            }
+            pthread_mutex_unlock(&mutex_annuaire);
+
+            if (!est_membre) {
+                envoyer_erreur_tcp(sockclient, "Erreur : Vous devez etre membre du groupe pour poster.");
+                break;
+            }
+
+            rep_poster_billet_t rep;
+            rep.codereq = 13;
+            rep.id_groupe = req.id_groupe;
+
+            pthread_mutex_lock(&mutex_messages);
+            
+            uint16_t nouveau_numb = compteurs_numb[req.id_groupe % MAX_GROUPES];
+            compteurs_numb[req.id_groupe % MAX_GROUPES]++;
+
+            // Ajout chronologique dans la base de données
+            if (nb_messages < MAX_MESSAGES) {
+                historique[nb_messages].id_groupe = req.id_groupe;
+                historique[nb_messages].id_auteur = req.id_client;
+                historique[nb_messages].numb = nouveau_numb;
+                historique[nb_messages].numr = 0; 
+                historique[nb_messages].len = req.len;
+                memcpy(historique[nb_messages].contenu, req.data, req.len);
+                nb_messages++;
+            }
+            pthread_mutex_unlock(&mutex_messages);
+            // Envoi de la confirmation au client (CODEREQ 13)
+            rep.numb = nouveau_numb;
+            serialize_poster_billet_resp(&rep, buffer_envoi);
+            my_send(sockclient, buffer_envoi, 4); 
+            
+            // Notification Multicast (CODEREQ 18) pour prévenir le groupe
+            pthread_mutex_lock(&mutex_annuaire);
+            for (int i = 0; i < nb_groupes; i++) {
+                if (groupes[i].id_groupe == req.id_groupe) {
+                    char ip_str[INET6_ADDRSTRLEN];
+                    inet_ntop(AF_INET6, groupes[i].ip_mdiff, ip_str, INET6_ADDRSTRLEN);
+                    
+                    uint16_t notif = htons((18 << 11) | (req.id_groupe & 0x07FF));
+                    envoyer_message_udp_ipv6(ip_str, groupes[i].port_mdiff, (const uint8_t *)&notif, 2);
+                    break;
+                }
+            }
+            pthread_mutex_unlock(&mutex_annuaire);
+            break;
+        }
+
+        case 14: { // Répondre à un billet existant
+            my_recv(sockclient, buffer_reception + 2, 6); 
+            
+            uint16_t len_net;
+            memcpy(&len_net, buffer_reception + 6, 2);
+            uint16_t len = ntohs(len_net);
+        
+            my_recv(sockclient, buffer_reception + 8, len);
+
+            req_repondre_billet_t req;
+            deserialize_repondre_billet_req(buffer_reception, &req);
+
+            //vérif est membre du gorupe
+            pthread_mutex_lock(&mutex_annuaire);
+            int est_membre = 0;
+            int idx_groupe = req.id_groupe - 1;
+            if (req.id_groupe > 0 && req.id_groupe <= nb_groupes && groupes[idx_groupe].id_groupe == req.id_groupe) {
+                for (int i = 0; i < groupes[idx_groupe].nb_membres; i++) {
+                    if (groupes[idx_groupe].membres[i] == req.id_client) {
+                        est_membre = 1; break;
+                    }
+                }
+            }
+            pthread_mutex_unlock(&mutex_annuaire);
+
+            if (!est_membre) {
+                envoyer_erreur_tcp(sockclient, "Erreur : Vous devez etre membre du groupe pour poster.");
+                break;
+            }
+
+            rep_repondre_billet_t rep;
+            rep.codereq = 15;
+            rep.id_groupe = req.id_groupe;
+            rep.numb = req.numb;
+
+            pthread_mutex_lock(&mutex_messages);
+            
+            compteurs_numr[req.id_groupe % MAX_GROUPES][req.numb % 500]++;
+            uint16_t nouveau_numr = compteurs_numr[req.id_groupe % MAX_GROUPES][req.numb % 500];
+
+            if (nb_messages < MAX_MESSAGES) {
+                historique[nb_messages].id_groupe = req.id_groupe;
+                historique[nb_messages].id_auteur = req.id_client;
+                historique[nb_messages].numb = req.numb;
+                historique[nb_messages].numr = nouveau_numr; 
+                historique[nb_messages].len = req.len;
+                memcpy(historique[nb_messages].contenu, req.data, req.len);
+                nb_messages++;
+            }
+            pthread_mutex_unlock(&mutex_messages);
+
+            // Envoi de la confirmation au client (CODEREQ 15)
+            rep.numr = nouveau_numr;
+            serialize_repondre_billet_resp(&rep, buffer_envoi);
+            my_send(sockclient, buffer_envoi, 4); 
+
+            // Notification Multicast (CODEREQ 18)
+            pthread_mutex_lock(&mutex_annuaire);
+            for (int i = 0; i < nb_groupes; i++) {
+                if (groupes[i].id_groupe == req.id_groupe) {
+                    char ip_str[INET6_ADDRSTRLEN];
+                    inet_ntop(AF_INET6, groupes[i].ip_mdiff, ip_str, INET6_ADDRSTRLEN);
+                    
+                    uint16_t notif = htons((18 << 11) | (req.id_groupe & 0x07FF));
+                    envoyer_message_udp_ipv6(ip_str, groupes[i].port_mdiff, (const uint8_t *)&notif, 2);
+                    break;
+                }
+            }
+            pthread_mutex_unlock(&mutex_annuaire);
+            break;
+        }
+
+        case 16: { // Demander l'historique
+            my_recv(sockclient, buffer_reception + 2, 4); 
+            req_demander_billets_t req;
+            deserialize_demander_billets_req(buffer_reception, &req);
+
+            //vérif est membre du gorupe
+            pthread_mutex_lock(&mutex_annuaire);
+            int est_membre = 0;
+            int idx_groupe = req.id_groupe - 1;
+            if (req.id_groupe > 0 && req.id_groupe <= nb_groupes && groupes[idx_groupe].id_groupe == req.id_groupe) {
+                for (int i = 0; i < groupes[idx_groupe].nb_membres; i++) {
+                    if (groupes[idx_groupe].membres[i] == req.id_client) {
+                        est_membre = 1; break;
+                    }
+                }
+            }
+            pthread_mutex_unlock(&mutex_annuaire);
+
+            if (!est_membre) {
+                envoyer_erreur_tcp(sockclient, "Erreur : Vous devez etre membre du groupe pour poster.");
+                break;
+            }
+
+            pthread_mutex_lock(&mutex_messages);
+
+            int idx_start = -1;
+            for (int i = 0; i < nb_messages; i++) {
+                if (historique[i].id_groupe == req.id_groupe && 
+                    historique[i].numb == req.numb && 
+                    historique[i].numr == req.numr) {
+                    idx_start = i;
+                    break;
+                }
+            }
+
+            uint16_t nb_a_envoyer = 0;
+            uint8_t *buffer_historique = malloc(65535); // 65535 est la limite absolue d'un paquet réseau (IP)
+            if (buffer_historique == NULL) break;
+            int offset = 4;
+
+            for (int i = idx_start + 1; i < nb_messages; i++) {
+                if (historique[i].id_groupe == req.id_groupe) {
+                    nb_a_envoyer++;
+                    
+                    uint16_t l3_msg = htons(historique[i].id_auteur << 5); 
+                    memcpy(buffer_historique + offset, &l3_msg, 2);
+                    offset += 2;
+
+                    // L4 : numb1 (0-10) | numr1 (11-15)
+                    uint16_t l4_msg = htons((historique[i].numb << 5) | (historique[i].numr & 0x1F));
+                    memcpy(buffer_historique + offset, &l4_msg, 2);
+                    offset += 2;
+
+                    // L5 : len1 (0-15)
+                    uint16_t msg_len_net = htons(historique[i].len);
+                    memcpy(buffer_historique + offset, &msg_len_net, 2);
+                    offset += 2;
+
+                    // L6 : data1 (0-...)
+                    memcpy(buffer_historique + offset, historique[i].contenu, historique[i].len);
+                    offset += historique[i].len;
+
+                }
+            }
+            pthread_mutex_unlock(&mutex_messages);
+
+            uint16_t l1 = htons((17 << 11) | (req.id_groupe & 0x07FF));
+            memcpy(buffer_historique, &l1, 2);
+
+            uint16_t nb_net = htons(nb_a_envoyer);
+            memcpy(buffer_historique + 2, &nb_net, 2);
+
+            my_send(sockclient, buffer_historique, offset);
+            free(buffer_historique);
             break;
         }
 
@@ -397,6 +690,7 @@ int main(void) {
 
     close(sock_serveur);
     pthread_mutex_destroy(&mutex_annuaire);
+    pthread_mutex_destroy(&mutex_messages);
     return 0;
     
 }

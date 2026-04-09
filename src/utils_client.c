@@ -194,7 +194,7 @@ void cmd_create(char *nom_groupe, uint16_t mon_id) {
             inet_ntop(AF_INET6, rep_cg.ipmdiff, ip, INET6_ADDRSTRLEN);
 
             printf("\nGROUPE \"%s\" CRÉÉ AVEC SUCCÈS !\n", nom_groupe);
-            printf("ID du groupe : %u\n", rep_cg.idg);
+            printf("ID du groupe : %u\n", rep_cg.id_groupe);
             printf("IP Multicast : %s\n", ip);
             printf("Port Multicast : %u\n\n", rep_cg.portmdiff);
 
@@ -287,7 +287,7 @@ void cmd_join(char *id_groupe_str, uint16_t mon_id) {
             char ip_str[INET6_ADDRSTRLEN];
             inet_ntop(AF_INET6, rep_join.ipmdiff, ip_str, INET6_ADDRSTRLEN);
             
-            printf("\nINVITATION ACCEPTÉE POUR LE GROUPE %u !\n", rep_join.idg);
+            printf("\nINVITATION ACCEPTÉE POUR LE GROUPE %u !\n", rep_join.id_groupe);
             printf("IP Multicast : %s\n", ip_str);
             printf("Port Multicast : %u\n", rep_join.portmdiff);
             
@@ -322,6 +322,19 @@ void cmd_decline(char *id_groupe_str, uint16_t mon_id) {
     }
 }
 
+void cmd_leave(char *id_groupe_str, uint16_t mon_id) {
+    // an = 2  quitter le groupe 
+    req_action_invitation_t req_act = { .codereq = 8, .id_client = mon_id, .an = 2 };
+    req_act.id_groupe = (uint16_t)atoi(id_groupe_str);
+
+    uint8_t buffer_cmd[512], buffer_rep[512];
+    size_t taille_msg = serialize_action_invitation(&req_act, buffer_cmd);
+
+    if (envoyer_requete_tcp(buffer_cmd, taille_msg, buffer_rep, sizeof(buffer_rep), 0) > 0) {
+        printf("Tu as quitté le groupe %u avec succès.\n", req_act.id_groupe);
+    }
+}
+
 void cmd_members(char *id_groupe_str, uint16_t mon_id) {
     req_demander_membres_t req_mem = { .codereq = 10, .id_client = mon_id };
     req_mem.id_groupe = (uint16_t)atoi(id_groupe_str);
@@ -338,7 +351,7 @@ void cmd_members(char *id_groupe_str, uint16_t mon_id) {
             if (req_mem.id_groupe == 0) {
                 printf("\n--- LISTE DE TOUS LES UTILISATEURS (%u) ---\n", rep_mem.nb);
             } else {
-                printf("\n--- MEMBRES DU GROUPE %u (%u) ---\n", rep_mem.idg, rep_mem.nb);
+                printf("\n--- MEMBRES DU GROUPE %u (%u) ---\n", rep_mem.id_groupe, rep_mem.nb);
             }
             
             if (rep_mem.nb == 0) {
@@ -467,7 +480,7 @@ void cmd_post(char *args, uint16_t mon_id) {
         deserialize_poster_billet_resp(buffer_rep, &rep);
 
         if (rep.codereq == 13) {
-            printf("\nBillet n°%u posté avec succès sur le groupe %u !\n\n", rep.numb, rep.idg);
+            printf("\nBillet n°%u posté avec succès sur le groupe %u !\n\n", rep.numb, rep.id_groupe);
         } else {
             printf("Erreur : Le serveur a répondu avec un code inattendu (%u).\n", rep.codereq);
         }

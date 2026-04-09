@@ -57,7 +57,7 @@ void deserialize_creer_groupe_req(const uint8_t *buffer, req_creer_groupe_t *req
 void serialize_creer_groupe_resp(const rep_creer_groupe_t *rep, uint8_t *buffer) {
     memset(buffer, 0, 20);
 
-    uint16_t premiere_ligne = htons((rep->codereq << 11) | (rep->idg & 0x07FF));
+    uint16_t premiere_ligne = htons((rep->codereq << 11) | (rep->id_groupe & 0x07FF));
     memcpy(buffer, &premiere_ligne, 2);
 
     uint16_t port_net = htons(rep->portmdiff);
@@ -120,7 +120,7 @@ void deserialize_action_invitation_req(const uint8_t *buffer, req_action_invitat
 
 // Désérialise la réponse à une invitation (CODEREQ = 24)
 size_t serialize_accepter_invitation_resp(const rep_action_invitation_acceptee_t *rep, uint8_t *buffer) {
-    uint16_t l1 = htons((rep->codereq << 11) | (rep->idg & 0x07FF));
+    uint16_t l1 = htons((rep->codereq << 11) | (rep->id_groupe & 0x07FF));
     memcpy(buffer, &l1, 2);
     
     uint16_t port = htons(rep->portmdiff);
@@ -154,7 +154,7 @@ void deserialize_lister_membres_req(const uint8_t *buffer, req_demander_membres_
 
 // Sérialise la réponse de listing des membres d'un groupe (CODEREQ = 11)
 size_t serialize_lister_membres_resp(const rep_demander_membres_t *rep, uint8_t *buffer) {
-    uint16_t l1 = htons((rep->codereq << 11) | (rep->idg & 0x07FF));
+    uint16_t l1 = htons((rep->codereq << 11) | (rep->id_groupe & 0x07FF));
     memcpy(buffer, &l1, 2);
     
     uint16_t nb = htons(rep->nb);
@@ -169,4 +169,83 @@ size_t serialize_lister_membres_resp(const rep_demander_membres_t *rep, uint8_t 
         offset += 10;
     }
     return offset;
+}
+
+
+//codereq 12
+void deserialize_poster_billet_req(const uint8_t *buffer, req_poster_billet_t *req) {
+    uint16_t l1, l2, l3;
+    memcpy(&l1, buffer, 2); l1 = ntohs(l1);
+    req->codereq = l1 >> 11;
+    req->id_client = l1 & 0x07FF;
+
+    memcpy(&l2, buffer + 2, 2); l2 = ntohs(l2);
+    req->id_groupe = l2 >> 5;
+
+    memcpy(&l3, buffer + 6, 2); 
+    req->len = ntohs(l3);
+
+    if (req->len > sizeof(req->data)) {
+        req->len = sizeof(req->data); 
+    }
+    memset(req->data, 0, sizeof(req->data));
+    memcpy(req->data, buffer + 6, req->len); 
+}
+
+
+//codereq 13
+void serialize_poster_billet_resp(const rep_poster_billet_t *rep, uint8_t *buffer) {
+    uint16_t l1 = htons((rep->codereq << 11) | (rep->id_groupe & 0x07FF));
+    memcpy(buffer, &l1, 2);
+    
+    uint16_t l2 = htons(rep->numb << 5); 
+    memcpy(buffer + 2, &l2, 2);
+    
+}
+
+//codereq 14
+void deserialize_repondre_billet_req(const uint8_t *buffer, req_repondre_billet_t *req) {
+    uint16_t l1, l2, l3, l4;
+    memcpy(&l1, buffer, 2); l1 = ntohs(l1);
+    req->codereq = l1 >> 11;
+    req->id_client = l1 & 0x07FF;
+
+    memcpy(&l2, buffer + 2, 2); l2 = ntohs(l2);
+    req->id_groupe = l2 >> 5;
+
+    memcpy(&l3, buffer + 4, 2); 
+    req->numb = ntohs(l3);
+
+    memcpy(&l4, buffer + 6, 2); 
+    req->len = ntohs(l4);
+
+    if (req->len > sizeof(req->data)) {
+        req->len = sizeof(req->data); 
+    }
+    memset(req->data, 0, sizeof(req->data));
+    memcpy(req->data, buffer + 8, req->len); 
+}
+
+//codereq 15
+void serialize_repondre_billet_resp(const rep_repondre_billet_t *rep, uint8_t *buffer) {
+    uint16_t l1 = htons((rep->codereq << 11) | (rep->id_groupe & 0x07FF));
+    memcpy(buffer, &l1, 2);
+    
+    uint16_t l2 = htons((rep->numb << 5) | (rep->numr & 0x1F));
+    memcpy(buffer + 2, &l2, 2);
+}
+
+//codereq 16
+void deserialize_demander_billets_req(const uint8_t *buffer, req_demander_billets_t *req) {
+    uint16_t l1, l2, l3;
+    memcpy(&l1, buffer, 2); l1 = ntohs(l1);
+    req->codereq = l1 >> 11;
+    req->id_groupe = l1 & 0x07FF;
+
+    memcpy(&l2, buffer + 2, 2); l2 = ntohs(l2);
+    req->id_client = l2 >> 5;
+
+    memcpy(&l3, buffer + 4, 2); l3 = ntohs(l3);
+    req->numb = l3 >> 5;
+    req->numr = l3 & 0x1F;
 }

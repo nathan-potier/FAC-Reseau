@@ -65,7 +65,7 @@ void deserialize_creer_groupe_resp(const uint8_t *buffer, rep_creer_groupe_t *re
     ligne1 = ntohs(ligne1);
     
     rep->codereq = ligne1 >> 11;
-    rep->idg = ligne1 & 0x07FF;
+    rep->id_groupe = ligne1 & 0x07FF;
     
     // PORTMDIFF
     uint16_t port_net;
@@ -172,7 +172,7 @@ void deserialize_demander_membres_resp(const uint8_t *buffer, rep_demander_membr
     ligne1 = ntohs(ligne1);
     
     rep->codereq = ligne1 >> 11;
-    rep->idg = ligne1 & 0x07FF;
+    rep->id_groupe = ligne1 & 0x07FF;
     
     // NB : 16 bits
     uint16_t ligne2;
@@ -203,7 +203,7 @@ void deserialize_action_invitation_acceptee_resp(const uint8_t *buffer, rep_acti
     memcpy(&ligne1, buffer, 2);
     ligne1 = ntohs(ligne1);
     rep->codereq = ligne1 >> 11;
-    rep->idg = ligne1 & 0x07FF;
+    rep->id_groupe = ligne1 & 0x07FF;
 
     // PORTMDIFF (16 bits)
     uint16_t port_net;
@@ -264,7 +264,7 @@ void deserialize_poster_billet_resp(const uint8_t *buffer, rep_poster_billet_t *
     memcpy(&ligne1, buffer, 2);
     ligne1 = ntohs(ligne1);
     rep->codereq = ligne1 >> 11;
-    rep->idg = ligne1 & 0x07FF;
+    rep->id_groupe = ligne1 & 0x07FF;
 
     // NUMB (11 bits) + ZEROS (5 bits)
     uint16_t ligne2;

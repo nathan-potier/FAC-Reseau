@@ -25,5 +25,14 @@ size_t serialize_accepter_invitation_resp(const rep_action_invitation_acceptee_t
 void deserialize_lister_membres_req(const uint8_t *buffer, req_demander_membres_t *req);
 size_t serialize_lister_membres_resp(const rep_demander_membres_t *rep, uint8_t *buffer);
 
+//messagerie 
+void deserialize_poster_billet_req(const uint8_t *buffer, req_poster_billet_t *req);
+void serialize_poster_billet_resp(const rep_poster_billet_t *rep, uint8_t *buffer);
+
+void deserialize_repondre_billet_req(const uint8_t *buffer, req_repondre_billet_t *req);
+void serialize_repondre_billet_resp(const rep_repondre_billet_t *rep, uint8_t *buffer);
+
+void deserialize_demander_billets_req(const uint8_t *buffer, req_demander_billets_t *req);
+
 
 #endif
