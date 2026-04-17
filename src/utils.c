@@ -74,13 +74,13 @@ int init_client_tcp_ipv6(const char *adresse, int port){
 
 
 
-ssize_t my_send(int sock, const void *buf, size_t len) {
+ssize_t my_send_ssl(SSL *ssl, const void *buf, size_t len) {
     size_t total_envoye = 0;
     // cast en char* pour manipuler octet par octet
     const char *pbuf = (const char *)buf; 
 
     while (total_envoye < len) {
-        ssize_t envoye = send(sock, pbuf + total_envoye, len - total_envoye, 0);
+        ssize_t envoye = SSL_write(ssl, pbuf + total_envoye, len - total_envoye);
         if (envoye <= 0) {
             return envoye; // erreur ou déconnexion
         }
@@ -89,12 +89,12 @@ ssize_t my_send(int sock, const void *buf, size_t len) {
     return total_envoye;
 }
 
-ssize_t my_recv(int sock, void *buf, size_t len) {
+ssize_t my_recv_ssl(SSL *ssl, void *buf, size_t len) {
     size_t total_recu = 0;
     char *pbuf = (char *)buf;
 
     while (total_recu < len) {
-        ssize_t recu = recv(sock, pbuf + total_recu, len - total_recu, 0);
+        ssize_t recu = SSL_read(ssl, pbuf + total_recu, len - total_recu);
         if (recu <= 0) {
             return recu; // erreur ou déconnexion
         }
@@ -175,7 +175,7 @@ int envoyer_message_udp_ipv6(const char *ip_dest, int port_dest, const uint8_t *
 }
 
 // Envoie une erreur TCP (CODEREQ = 31) avec un message
-void envoyer_erreur_tcp(int sock, const char *message_erreur) {
+void envoyer_erreur_tcp_ssl(SSL *ssl, const char *message_erreur) {
     uint8_t buffer[1024]; 
     
     // pour ne pas déborder du buffer
@@ -189,5 +189,5 @@ void envoyer_erreur_tcp(int sock, const char *message_erreur) {
     memcpy(buffer, &entete, 2);
     memcpy(buffer + 2, message_erreur, len);
     
-    my_send(sock, buffer, 2 + len);
+    my_send_ssl(ssl, buffer, 2 + len);
 }
