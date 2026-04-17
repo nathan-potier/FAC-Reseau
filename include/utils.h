@@ -3,6 +3,8 @@
 
 #include <stddef.h>
 #include <sys/types.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
 
 // Initialise un serveur TCP IPv6 en écoute sur le port donné
 int init_serveur_tcp_ipv6(int port);
@@ -11,10 +13,10 @@ int init_serveur_tcp_ipv6(int port);
 int init_client_tcp_ipv6(const char *adresse, int port);
 
 // Envoie tout les octets demandés 
-ssize_t my_send(int sock, const void *buf, size_t len);
+ssize_t my_send_ssl(SSL *ssl, const void *buf, size_t len);
 
 // Reçoit toute la quantité demandée 
-ssize_t my_recv(int sock, void *buf, size_t len);
+ssize_t my_recv_ssl(SSL *ssl, void *buf, size_t len);
 
 // Initialise une socket UDP IPv6 en écoute sur un port donné
 int init_ecoute_udp_ipv6(int port);
@@ -29,6 +31,6 @@ void generer_adresse_multicast(uint16_t id_groupe, char *ip_str_sortie, uint8_t 
 int envoyer_message_udp_ipv6(const char *ip_dest, int port_dest, const uint8_t *message, size_t len);
 
 // Envoie une erreur TCP (CODEREQ = 31) avec un message
-void envoyer_erreur_tcp(int sock, const char *message_erreur);
+void envoyer_erreur_tcp_ssl(SSL *ssl, const char *message);
 
 #endif
