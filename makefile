@@ -8,7 +8,7 @@ serveur: src/serveur.c src/utils.c
 
 client: src/client.c src/utils.c
 	gcc $(CFLAGS) -o client src/client.c src/utils.c src/serialisation_client.c src/utils_client.c -lssl -lcrypto
-make keys:
-	openssl req -x509 -newkey rsa:2048 -nodes -sha256 -keyout serv.key -out serv.crt -days 365
+keys:
+	openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout serv.key -out serv.crt -subj "/CN=localhost"
 clean:
 	rm -f serveur client src/*.o mon_profil.txt
