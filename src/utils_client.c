@@ -6,6 +6,8 @@
 #include <arpa/inet.h>
 #include <string.h>
 #include <pthread.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
 
 #include "utils.h"
 #include "utils_client.h"
@@ -105,12 +107,30 @@ int envoyer_requete_tcp(const uint8_t *buffer_cmd, size_t taille_msg, uint8_t *b
         printf("Erreur de connexion au serveur.\n");
         return -1;
     }
+    // init TLS
+    SSL_library_init();
+    SSL_CTX *ctx = SSL_CTX_new(TLS_client_method());
+    if (!ctx) { close(sock_cmd); return -1; }
+    
+    SSL *ssl = SSL_new(ctx);
+    SSL_set_fd(ssl, sock_cmd);
 
-    my_send(sock_cmd, buffer_cmd, taille_msg);
+    if (SSL_connect(ssl) <= 0) {
+        ERR_print_errors_fp(stderr);
+        SSL_free(ssl);
+        SSL_CTX_free(ctx);
+        close(sock_cmd);
+        return -1;
+    }
+
+    my_send_ssl(ssl, buffer_cmd, taille_msg);
 
     // on lit l'en-tête
-    int recu = my_recv(sock_cmd, buffer_rep, 2);
+    int recu = my_recv_ssl(ssl, buffer_rep, 2);
     if (recu != 2) {
+        SSL_shutdown(ssl);
+        SSL_free(ssl);
+        SSL_CTX_free(ctx);
         close(sock_cmd);
         printf("Erreur de réception ou serveur déconnecté.\n");
         return -1;
@@ -125,22 +145,43 @@ int envoyer_requete_tcp(const uint8_t *buffer_cmd, size_t taille_msg, uint8_t *b
     if (codereq == 31) {
         uint16_t len = entete & 0x07FF; // La taille exacte du message d'erreur
         if (len > 0 && len <= (taille_max - 2)) {
-            int recu_err = my_recv(sock_cmd, buffer_rep + 2, len);
+            int recu_err = my_recv_ssl(ssl, buffer_rep + 2, len);
             if (recu_err > 0) recu += recu_err;
         }
+        SSL_shutdown(ssl);
+        SSL_free(ssl);
+        SSL_CTX_free(ctx);
         close(sock_cmd);
         check_erreur_serveur(buffer_rep, recu);
         return -1; 
     }
 
     if (taille_exacte > 2) {
-        int recu_suite = my_recv(sock_cmd, buffer_rep + 2, taille_exacte - 2);
-        if (recu_suite > 0) recu += recu_suite;
+        // On connait la taille exacte attendue 
+        int recu_suite = my_recv_ssl(ssl, buffer_rep + 2, taille_exacte - 2);
+        if (recu_suite > 0) {
+            recu += recu_suite;
+        } else {
+            recu = -1; // Erreur
+        }
     } else if (taille_exacte == 0) {
-        int recu_suite = recv(sock_cmd, buffer_rep + 2, taille_max - 2, 0);
-        if (recu_suite > 0) recu += recu_suite;
+        // Taille inconnue (join, members, history) : On lit jusqu'à ce que le serveur dise "stop"
+        int recu_total_suite = 0;
+        while (recu_total_suite < (int)(taille_max - 2)) {
+            int recu_partiel = SSL_read(ssl, buffer_rep + 2 + recu_total_suite, taille_max - 2 - recu_total_suite);
+            if (recu_partiel <= 0) {
+                // Le serveur a terminé d'envoyer (SSL_shutdown) ou erreur
+                break; 
+            }
+            recu_total_suite += recu_partiel;
+        }
+        recu += recu_total_suite; // On ajoute tout ce qu'on a récupèrer
     }
     
+    SSL_shutdown(ssl);
+    SSL_free(ssl);
+    SSL_CTX_free(ctx);
+
     close(sock_cmd);
     return recu;
 }
@@ -413,8 +454,30 @@ int initialiser_profil(uint16_t *mon_id, uint16_t *mon_port_udp, char *cle_serve
         return 0;
     } 
     
-    my_send(sock, buffer_cmd, REQ_INSCRIPTION_SIZE);
-    my_recv(sock, buffer_rep, RESP_INSCRIPTION_SIZE);
+    // protocole TLS pour sécuriser l'inscription
+    SSL_library_init();
+    SSL_CTX *ctx = SSL_CTX_new(TLS_client_method());
+    if (!ctx) { close(sock); return 0; }
+    
+    SSL *ssl = SSL_new(ctx);
+    SSL_set_fd(ssl, sock);
+
+    if (SSL_connect(ssl) <= 0) { 
+        ERR_print_errors_fp(stderr);
+        SSL_free(ssl);
+        SSL_CTX_free(ctx);
+        close(sock);
+        return 0;
+    }
+    
+    
+    my_send_ssl(ssl, buffer_cmd, REQ_INSCRIPTION_SIZE);
+    my_recv_ssl(ssl, buffer_rep, RESP_INSCRIPTION_SIZE);
+    
+    // Fermeture propre du tunnel
+    SSL_shutdown(ssl);
+    SSL_free(ssl);
+    SSL_CTX_free(ctx);
     close(sock);
 
     rep_inscription_t rep;
