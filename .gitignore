@@ -5,3 +5,5 @@ src/*.o
 test_alice/*
 test_bob/*
 test_auto.sh
+*.key
+*.crt
