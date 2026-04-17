@@ -10,4 +10,4 @@ client: src/client.c src/utils.c
 	gcc $(CFLAGS) -o client src/client.c src/utils.c src/serialisation_client.c src/utils_client.c -lssl -lcrypto
 
 clean:
-	rm -f serveur client src/*.o
+	rm -f serveur client src/*.o mon_profil.txt
