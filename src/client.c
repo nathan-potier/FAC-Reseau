@@ -7,11 +7,16 @@
 #include <pthread.h>
 #include "serialisation_client.h" 
 #include "utils_client.h" 
+#include <signal.h>
 
 int main() {
     uint16_t mon_id = 0;
     uint16_t mon_port_udp = 0;
     char cle_serveur[113];
+
+    struct sigaction action = {0};
+    action.sa_handler = SIG_IGN;
+    sigaction(SIGPIPE, &action, NULL);
 
     printf("BIENVENUE SUR PAROLES\n");
     
