@@ -6,6 +6,9 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+#include <signal.h>
 
 #include "utils.h"
 #include "serialisation_serveur.h" 
@@ -16,6 +19,8 @@
 #define MAX_INVITATIONS 150
 #define ADRESSE_LOCALE "::1"
 #define MAX_MESSAGES 2000
+
+SSL_CTX *ctx_global;
 
 // Représentation interne d'un utilisateur côté serveur
 typedef struct {
@@ -83,6 +88,19 @@ void *serve(void *arg) {
     int sockclient = *((int *)arg);
     free(arg); 
 
+
+    // sécurisation TLS de la connexion avec le client
+    SSL *ssl = SSL_new(ctx_global);
+    SSL_set_fd(ssl, sockclient);
+
+    if (SSL_accept(ssl) <= 0) { // TLS Handshake 
+        ERR_print_errors_fp(stderr);
+        SSL_free(ssl);
+        close(sockclient);
+        return NULL;
+    }
+
+
     uint8_t buffer_reception[4096]; 
     uint8_t buffer_envoi[4096];
 
@@ -93,7 +111,9 @@ void *serve(void *arg) {
 
 
     // Lecture des 2 premiers octets pour isoler le CODEREQ
-    if (my_recv(sockclient, buffer_reception, 2) <= 0) {
+    if (my_recv_ssl(ssl, buffer_reception, 2) <= 0) {
+        SSL_shutdown(ssl);
+        SSL_free(ssl);
         close(sockclient);
         return NULL;
     }
@@ -107,7 +127,7 @@ void *serve(void *arg) {
     //A FACTORISER QUAND ON A LE TEMPS FONCTIONS POUR CHAQUE CODEREQ 
     switch (codereq) {
         case 1: { //Inscription
-            my_recv(sockclient, buffer_reception + 2, REQ_INSCRIPTION_SIZE - 2);
+            my_recv_ssl(ssl,  buffer_reception + 2, REQ_INSCRIPTION_SIZE - 2);
             req_inscription_t requete;
             deserialize_inscription_req(buffer_reception, &requete);
 
@@ -132,15 +152,15 @@ void *serve(void *arg) {
 
             if (reponse.codereq == 2) {
                 serialize_inscription_resp(&reponse, buffer_envoi);
-                my_send(sockclient, buffer_envoi, RESP_INSCRIPTION_SIZE);
+                my_send_ssl(ssl, buffer_envoi, RESP_INSCRIPTION_SIZE);
             }
             break;
         }
 
         case 3: { // Création d'un groupe
-            my_recv(sockclient, buffer_reception + 2, 1); 
+            my_recv_ssl(ssl,  buffer_reception + 2, 1); 
             uint8_t len = buffer_reception[2];
-            my_recv(sockclient, buffer_reception + 3, len); // Lecture du nom du groupe
+            my_recv_ssl(ssl,  buffer_reception + 3, len); // Lecture du nom du groupe
 
             req_creer_groupe_t requete;
             deserialize_creer_groupe_req(buffer_reception, &requete);
@@ -175,17 +195,17 @@ void *serve(void *arg) {
 
             if (reponse.codereq == 4) {
                 serialize_creer_groupe_resp(&reponse, buffer_envoi);
-                my_send(sockclient, buffer_envoi, 20);
+                my_send_ssl(ssl, buffer_envoi, 20);
             }
             break;
         }
 
         case 5: { // Inviter des utilisateurs
-            my_recv(sockclient, buffer_reception + 2, 2); 
+            my_recv_ssl(ssl,  buffer_reception + 2, 2); 
             uint16_t ligne2;
             memcpy(&ligne2, buffer_reception + 2, 2);
             uint8_t nb_invites = ntohs(ligne2) & 0x1F;
-            my_recv(sockclient, buffer_reception + 4, nb_invites * 2);
+            my_recv_ssl(ssl,  buffer_reception + 4, nb_invites * 2);
 
             req_inviter_t req;
             deserialize_inviter_req(buffer_reception, &req);
@@ -194,7 +214,7 @@ void *serve(void *arg) {
             int idx_groupe = req.id_groupe - 1;
             if (req.id_groupe == 0 || req.id_groupe > nb_groupes || groupes[idx_groupe].id_admin != req.id_client) {
                 pthread_mutex_unlock(&mutex_annuaire);
-                envoyer_erreur_tcp(sockclient, "Erreur : Seul l'administrateur peut inviter des membres.");
+                envoyer_erreur_tcp_ssl(ssl, "Erreur : Seul l'administrateur peut inviter des membres.");
                 break;
             }
 
@@ -218,7 +238,7 @@ void *serve(void *arg) {
 
             uint16_t ack = htons(24 << 11);
             memcpy(buffer_envoi, &ack, 2);
-            my_send(sockclient, buffer_envoi, 2);
+            my_send_ssl(ssl, buffer_envoi, 2);
             break;
         }
 
@@ -240,12 +260,12 @@ void *serve(void *arg) {
             pthread_mutex_unlock(&mutex_annuaire);
 
             size_t taille = serialize_lister_invites_resp(&rep, buffer_envoi);
-            my_send(sockclient, buffer_envoi, taille);
+            my_send_ssl(ssl, buffer_envoi, taille);
             break;
         }
 
         case 8: { // Répondre à une invitation (Accepter ou Refuser)
-            my_recv(sockclient, buffer_reception + 2, 2); 
+            my_recv_ssl(ssl,  buffer_reception + 2, 2); 
             req_action_invitation_t req;
             deserialize_action_invitation_req(buffer_reception, &req);
             pthread_mutex_lock(&mutex_annuaire);
@@ -264,7 +284,7 @@ void *serve(void *arg) {
             //Rejoindre sans invitation
             if (req.an == 1 && !est_invite) {
                 pthread_mutex_unlock(&mutex_annuaire);
-                envoyer_erreur_tcp(sockclient, "Action refusee : Vous n'avez pas d'invitation.");
+                envoyer_erreur_tcp_ssl(ssl, "Action refusee : Vous n'avez pas d'invitation.");
                 break;
             }
 
@@ -285,7 +305,7 @@ void *serve(void *arg) {
 
                     if (deja_membre) {
                         pthread_mutex_unlock(&mutex_annuaire);
-                        envoyer_erreur_tcp(sockclient, "Action refusee : Vous etes deja membre de ce groupe.");
+                        envoyer_erreur_tcp_ssl(ssl, "Action refusee : Vous etes deja membre de ce groupe.");
                         break;
                     }
 
@@ -309,7 +329,7 @@ void *serve(void *arg) {
                     }
 
                     size_t taille = serialize_accepter_invitation_resp(&rep, buffer_envoi);
-                    my_send(sockclient, buffer_envoi, taille);
+                    my_send_ssl(ssl, buffer_envoi, taille);
 
                     char ip_str[INET6_ADDRSTRLEN];
                     inet_ntop(AF_INET6, groupes[idx_groupe].ip_mdiff, ip_str, INET6_ADDRSTRLEN);
@@ -319,13 +339,13 @@ void *serve(void *arg) {
                     envoyer_message_udp_ipv6(ip_str, groupes[idx_groupe].port_mdiff, (const uint8_t *)&notif_accept, 2);
                 }else {
                     pthread_mutex_unlock(&mutex_annuaire);
-                    envoyer_erreur_tcp(sockclient, "Erreur : Ce groupe n'existe pas.");
+                    envoyer_erreur_tcp_ssl(ssl, "Erreur : Ce groupe n'existe pas.");
                     break;
                 }   
             } else { // Refuse AN = 0 ou Quitte AN = 2
                 uint16_t ack = htons(24 << 11);
                 memcpy(buffer_envoi, &ack, 2);
-                my_send(sockclient, buffer_envoi, 2);
+                my_send_ssl(ssl, buffer_envoi, 2);
 
                 if (req.an == 2) { // Si le client a quiitté le groupe (et non juste refusé l'invitation)
                     if (req.id_groupe > 0 && req.id_groupe <= nb_groupes && groupes[req.id_groupe - 1].id_groupe == req.id_groupe) {
@@ -362,7 +382,7 @@ void *serve(void *arg) {
         }
 
         case 10: { // Demander la liste des membres d'un groupe ou de tous les utilisateurs
-            my_recv(sockclient, buffer_reception + 2, 2); 
+            my_recv_ssl(ssl,  buffer_reception + 2, 2); 
             req_demander_membres_t req;
             deserialize_lister_membres_req(buffer_reception, &req);
 
@@ -384,7 +404,7 @@ void *serve(void *arg) {
             pthread_mutex_unlock(&mutex_annuaire);
 
             if (!est_membre) {
-                envoyer_erreur_tcp(sockclient, "Erreur : Vous devez etre membre du groupe pour poster.");
+                envoyer_erreur_tcp_ssl(ssl, "Erreur : Vous devez etre membre du groupe pour poster.");
                 break;
             }
 
@@ -425,17 +445,17 @@ void *serve(void *arg) {
             pthread_mutex_unlock(&mutex_annuaire);
 
             size_t taille = serialize_lister_membres_resp(&rep, buffer_envoi);
-            my_send(sockclient, buffer_envoi, taille);
+            my_send_ssl(ssl, buffer_envoi, taille);
             break;
         }
 
         case 12: { // Poster un nouveau billet
-            my_recv(sockclient, buffer_reception + 2, 4); 
+            my_recv_ssl(ssl,  buffer_reception + 2, 4); 
             uint16_t len_net;
             memcpy(&len_net, buffer_reception + 4, 2);
             uint16_t len = ntohs(len_net);
             
-            my_recv(sockclient, buffer_reception + 6, len);
+            my_recv_ssl(ssl,  buffer_reception + 6, len);
             req_poster_billet_t req;
             deserialize_poster_billet_req(buffer_reception, &req);
 
@@ -453,7 +473,7 @@ void *serve(void *arg) {
             pthread_mutex_unlock(&mutex_annuaire);
 
             if (!est_membre) {
-                envoyer_erreur_tcp(sockclient, "Erreur : Vous devez etre membre du groupe pour poster.");
+                envoyer_erreur_tcp_ssl(ssl, "Erreur : Vous devez etre membre du groupe pour poster.");
                 break;
             }
 
@@ -480,7 +500,7 @@ void *serve(void *arg) {
             // Envoi de la confirmation au client (CODEREQ 13)
             rep.numb = nouveau_numb;
             serialize_poster_billet_resp(&rep, buffer_envoi);
-            my_send(sockclient, buffer_envoi, 4); 
+            my_send_ssl(ssl, buffer_envoi, 4); 
             
             // Notification Multicast (CODEREQ 18) pour prévenir le groupe
             pthread_mutex_lock(&mutex_annuaire);
@@ -499,13 +519,13 @@ void *serve(void *arg) {
         }
 
         case 14: { // Répondre à un billet existant
-            my_recv(sockclient, buffer_reception + 2, 6); 
+            my_recv_ssl(ssl,  buffer_reception + 2, 6); 
             
             uint16_t len_net;
             memcpy(&len_net, buffer_reception + 6, 2);
             uint16_t len = ntohs(len_net);
         
-            my_recv(sockclient, buffer_reception + 8, len);
+            my_recv_ssl(ssl,  buffer_reception + 8, len);
 
             req_repondre_billet_t req;
             deserialize_repondre_billet_req(buffer_reception, &req);
@@ -524,7 +544,7 @@ void *serve(void *arg) {
             pthread_mutex_unlock(&mutex_annuaire);
 
             if (!est_membre) {
-                envoyer_erreur_tcp(sockclient, "Erreur : Vous devez etre membre du groupe pour poster.");
+                envoyer_erreur_tcp_ssl(ssl, "Erreur : Vous devez etre membre du groupe pour poster.");
                 break;
             }
 
@@ -552,7 +572,7 @@ void *serve(void *arg) {
             // Envoi de la confirmation au client (CODEREQ 15)
             rep.numr = nouveau_numr;
             serialize_repondre_billet_resp(&rep, buffer_envoi);
-            my_send(sockclient, buffer_envoi, 4); 
+            my_send_ssl(ssl, buffer_envoi, 4); 
 
             // Notification Multicast (CODEREQ 18)
             pthread_mutex_lock(&mutex_annuaire);
@@ -571,7 +591,7 @@ void *serve(void *arg) {
         }
 
         case 16: { // Demander l'historique
-            my_recv(sockclient, buffer_reception + 2, 4); 
+            my_recv_ssl(ssl,  buffer_reception + 2, 4); 
             req_demander_billets_t req;
             deserialize_demander_billets_req(buffer_reception, &req);
 
@@ -589,7 +609,7 @@ void *serve(void *arg) {
             pthread_mutex_unlock(&mutex_annuaire);
 
             if (!est_membre) {
-                envoyer_erreur_tcp(sockclient, "Erreur : Vous devez etre membre du groupe pour poster.");
+                envoyer_erreur_tcp_ssl(ssl, "Erreur : Vous devez etre membre du groupe pour poster.");
                 break;
             }
 
@@ -650,7 +670,7 @@ void *serve(void *arg) {
             uint16_t nb_net = htons(nb_a_envoyer);
             memcpy(buffer_historique + 2, &nb_net, 2);
 
-            my_send(sockclient, buffer_historique, offset);
+            my_send_ssl(ssl, buffer_historique, offset);
             free(buffer_historique);
             break;
         }
@@ -658,11 +678,13 @@ void *serve(void *arg) {
 
         default:
             printf("Requête non reconnue (CodeReq: %d)\n", codereq);
-            envoyer_erreur_tcp(sockclient, "Erreur : Code de requete inconnu ou mal formaté.");
+            envoyer_erreur_tcp_ssl(ssl, "Erreur : Code de requete inconnu ou mal formaté.");
             break;
     }
 
     // on ferme la connexion TCP dès l'échange terminé
+    SSL_shutdown(ssl);
+    SSL_free(ssl);
     close(sockclient);
     return NULL;
 }
@@ -673,6 +695,27 @@ int main(void) {
     if (sock_serveur < 0) return EXIT_FAILURE;
 
     printf("Serveur Paroles en écoute sur le port %d...\n", PORT_SERVEUR);
+
+
+    struct sigaction action = {0};
+    action.sa_handler = SIG_IGN;
+    sigaction(SIGPIPE, &action, NULL);
+
+    SSL_library_init();
+    OpenSSL_add_all_algorithms();
+    SSL_load_error_strings();
+
+    ctx_global = SSL_CTX_new(TLS_server_method());
+    if (!ctx_global) { ERR_print_errors_fp(stderr); exit(1); }
+
+    // Chargement des certificats
+    if (SSL_CTX_use_certificate_file(ctx_global, "serv.crt", SSL_FILETYPE_PEM) <= 0) {
+        ERR_print_errors_fp(stderr); exit(1);
+    }
+    if (SSL_CTX_use_PrivateKey_file(ctx_global, "serv.key", SSL_FILETYPE_PEM) <= 0) {
+        ERR_print_errors_fp(stderr); exit(1);
+    }
+
 
     while (1) {
         struct sockaddr_in6 adrclient;
