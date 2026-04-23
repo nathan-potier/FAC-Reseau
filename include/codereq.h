@@ -7,6 +7,16 @@
 #define RESP_INSCRIPTION_SIZE 117 // 2 (codereq + id) + 2 (portudp) + 113 (cle)
 #define RESP_CREER_GROUPE_SIZE 20
 
+
+// CODEREQ = 0 : Authentification (68 octets)
+// 2 octets (codereq + id) + 2 octets (num_msg) + 64 octets (signature)
+typedef struct {
+    uint8_t codereq;       // 5 bits
+    uint16_t id_client;    // 11 bit
+    uint16_t num_msg;      // 16 bits
+    uint8_t signature[64]; // Signature ED25519 fixe de 64 octets
+} req_auth_t;
+
 // Requête du client -> serveur pour inscription (CODEREQ = 1)
 typedef struct {
     uint8_t codereq;      // 1

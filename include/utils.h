@@ -5,6 +5,8 @@
 #include <sys/types.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include <openssl/evp.h>
+#include <openssl/pem.h>
 
 // Initialise un serveur TCP IPv6 en écoute sur le port donné
 int init_serveur_tcp_ipv6(int port);
@@ -32,5 +34,14 @@ int envoyer_message_udp_ipv6(const char *ip_dest, int port_dest, const uint8_t *
 
 // Envoie une erreur TCP (CODEREQ = 31) avec un message
 void envoyer_erreur_tcp_ssl(SSL *ssl, const char *message);
+
+// Génère les fichiers priv-ed.pem et pub-ed.pem 
+void generer_cles_ed25519(char *cle_publique_113_octets);
+
+// Signe un message 
+int signer_message_ed25519(const uint8_t *message, size_t message_len, uint8_t *signature);
+
+// Vérifie une signature 
+int verifier_signature_ed25519(const char *cle_publique_113_octets, const uint8_t *message, size_t message_len, const uint8_t *signature);
 
 #endif

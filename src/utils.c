@@ -191,3 +191,83 @@ void envoyer_erreur_tcp_ssl(SSL *ssl, const char *message_erreur) {
     
     my_send_ssl(ssl, buffer, 2 + len);
 }
+
+
+
+void generer_cles_ed25519(char *cle_publique_113_octets) {
+    
+    system("openssl genpkey -algorithm ed25519 -out priv-ed.pem 2>/dev/null");
+    system("openssl pkey -in priv-ed.pem -pubout -out pub-ed.pem 2>/dev/null");
+
+    // fichier fait exactement 113 octets
+    FILE *f_pub = fopen("pub-ed.pem", "r");
+    if (f_pub != NULL) {
+        fread(cle_publique_113_octets, 1, 113, f_pub);
+        fclose(f_pub);
+    }
+}
+
+
+int signer_message_ed25519(const uint8_t *msg, size_t msg_len, uint8_t *sig) {
+    // Lecture de la clé privée 113 octets
+    FILE *f = fopen("priv-ed.pem", "r");
+    if (!f) return 0;
+    EVP_PKEY *pkey = PEM_read_PrivateKey(f, NULL, NULL, NULL);
+    fclose(f);
+    if (!pkey) return 0;
+
+  
+    EVP_MD_CTX *mdctx;
+    if ((mdctx = EVP_MD_CTX_create()) == NULL) {
+        EVP_PKEY_free(pkey);
+        return 0;
+    }
+
+    // initialisation de la signature
+    if (EVP_DigestSignInit(mdctx, NULL, NULL, NULL, pkey) != 1) {
+        EVP_MD_CTX_free(mdctx); EVP_PKEY_free(pkey); return 0;
+    }
+
+    // Signature 
+    size_t slen = 64; // ED25519 génère toujours 64 octets
+    if (EVP_DigestSign(mdctx, sig, &slen, msg, msg_len) != 1) {
+        EVP_MD_CTX_free(mdctx); EVP_PKEY_free(pkey); return 0;
+    }
+
+    EVP_MD_CTX_free(mdctx);
+    EVP_PKEY_free(pkey);
+    return 1;
+}
+
+
+int verifier_signature_ed25519(const char *cle_publique_113_octets, const uint8_t *msg, size_t msg_len, const uint8_t *sig) {
+    FILE *f_tmp = fopen("temp_pub.pem", "w");
+    if (!f_tmp) return 0;
+    fwrite(cle_publique_113_octets, 1, 113, f_tmp);
+    fclose(f_tmp);
+
+    // Lecture de la clé publique
+    f_tmp = fopen("temp_pub.pem", "r");
+    EVP_PKEY *pkey = PEM_read_PUBKEY(f_tmp, NULL, NULL, NULL);
+    fclose(f_tmp);
+    remove("temp_pub.pem"); 
+    if (!pkey) return 0;
+
+    EVP_MD_CTX *mdctx;
+    if ((mdctx = EVP_MD_CTX_create()) == NULL) {
+        EVP_PKEY_free(pkey); return 0;
+    }
+
+    // Initialisation
+    if (EVP_DigestVerifyInit(mdctx, NULL, NULL, NULL, pkey) != 1) {
+        EVP_MD_CTX_free(mdctx); EVP_PKEY_free(pkey); return 0;
+    }
+
+    // Vérification
+    int ret = EVP_DigestVerify(mdctx, sig, 64, msg, msg_len);
+
+    EVP_MD_CTX_free(mdctx);
+    EVP_PKEY_free(pkey);
+    
+    return (ret == 1);
+}
