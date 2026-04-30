@@ -214,7 +214,7 @@ void deserialize_repondre_billet_req(const uint8_t *buffer, req_repondre_billet_
     req->id_groupe = l2 >> 5;
 
     memcpy(&l3, buffer + 4, 2); 
-    req->numb = ntohs(l3);
+    req->numb = ntohs(l3) >> 5;
 
     memcpy(&l4, buffer + 6, 2); 
     req->len = ntohs(l4);
