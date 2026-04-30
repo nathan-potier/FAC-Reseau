@@ -8,12 +8,12 @@
 #define RESP_CREER_GROUPE_SIZE 20
 
 
-// CODEREQ = 0 : Authentification (68 octets)
-// 2 octets (codereq + id) + 2 octets (num_msg) + 64 octets (signature)
+// CODEREQ = 0 : Authentification (72 octets au total)
 typedef struct {
     uint8_t codereq;       // 5 bits
-    uint16_t id_client;    // 11 bit
-    uint16_t num_msg;      // 16 bits
+    uint16_t id_client;    // 11 bits
+    uint32_t num_msg;      // 4 octets (32 bits)
+    uint16_t lsig;         // 2 octets (16 bits)
     uint8_t signature[64]; // Signature ED25519 fixe de 64 octets
 } req_auth_t;
 

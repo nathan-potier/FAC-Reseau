@@ -16,6 +16,9 @@
 #define ADRESSE_LOCALE "::1"
 #define PORT_SERVEUR 8080
 
+char g_cle_serveur[113];
+uint32_t g_num_msg = 0;
+
 void *ecoute_notifications_udp(void *arg) {
     int sock_udp = *((int *)arg);
     uint8_t buffer[512];
@@ -122,6 +125,49 @@ int envoyer_requete_tcp(const uint8_t *buffer_cmd, size_t taille_msg, uint8_t *b
         close(sock_cmd);
         return -1;
     }
+
+    //On extrait "mon_id" des 2 premiers octets de buffer_cmd
+    uint16_t cmd_l1;
+    memcpy(&cmd_l1, buffer_cmd, 2);
+    cmd_l1 = ntohs(cmd_l1);
+    uint16_t mon_id = cmd_l1 & 0x07FF;
+
+    //6 octets à signer : CODEREQ(0) + ID + NUM
+    uint8_t data_to_sign[6];
+    uint16_t auth_l1 = htons((0 << 11) | (mon_id & 0x07FF));
+    uint32_t auth_num = htonl(g_num_msg);
+    memcpy(data_to_sign, &auth_l1, 2);
+    memcpy(data_to_sign + 2, &auth_num, 4);
+
+    // On signe avec notre clé privée locale
+    uint8_t signature[64];
+    if (!signer_message_ed25519(data_to_sign, 6, signature)) {
+        printf("[Erreur Client] Impossible de signer le message d'authentification.\n");
+        SSL_shutdown(ssl); SSL_free(ssl); SSL_CTX_free(ctx); close(sock_cmd); return -1;
+    }
+
+    // On envoie le paquet complet (72 octets)
+    uint8_t buffer_auth[72];
+    memcpy(buffer_auth, data_to_sign, 6);
+    uint16_t lsig_net = htons(64); // Longueur de la signature (16 bits)
+    memcpy(buffer_auth + 6, &lsig_net, 2);
+    memcpy(buffer_auth + 8, signature, 64);
+
+    my_send_ssl(ssl, buffer_auth, 72);
+
+    // On attend la réponse d'authentification du serveur (72 octets)
+    uint8_t resp_auth[72];
+    if (my_recv_ssl(ssl, resp_auth, 72) != 72) {
+        printf("[Erreur Serveur] Échec ou absence d'authentification.\n");
+        SSL_shutdown(ssl); SSL_free(ssl); SSL_CTX_free(ctx); close(sock_cmd); return -1;
+    }
+
+    // On vérifie que c'est bien le serveur qui nous parle
+    if (!verifier_signature_ed25519(g_cle_serveur, resp_auth, 6, resp_auth + 8)) {
+        printf("\n[ALERTE SÉCURITÉ] Signature du serveur invalide ! Connexion avortée.\n");
+        SSL_shutdown(ssl); SSL_free(ssl); SSL_CTX_free(ctx); close(sock_cmd); return -1;
+    }
+    g_num_msg++;
 
     my_send_ssl(ssl, buffer_cmd, taille_msg);
 
@@ -423,6 +469,7 @@ int initialiser_profil(uint16_t *mon_id, uint16_t *mon_port_udp, char *cle_serve
             *mon_id = profil.id; // sauvegarde ID
             *mon_port_udp = profil.portudp;
             memcpy(cle_serveur, profil.cle, 113);
+            memcpy(g_cle_serveur, profil.cle, 113);
             printf("[INFO] Profil local trouvé ! Reconnexion automatique...\n");
             printf("Bon retour ! Ton ID est %u et ton port UDP est %u.\n", *mon_id, *mon_port_udp);
             fclose(fichier);
@@ -444,6 +491,10 @@ int initialiser_profil(uint16_t *mon_id, uint16_t *mon_port_udp, char *cle_serve
     memset(&req, 0, sizeof(req));
     req.codereq = 1;
     strncpy(req.nom, pseudo, 10);
+
+    char cle_publique_client[113];
+    generer_cles_ed25519(cle_publique_client); // Génère priv-ed.pem et pub-ed.pem
+    memcpy(req.cle, cle_publique_client, 113);
 
     uint8_t buffer_cmd[REQ_INSCRIPTION_SIZE], buffer_rep[RESP_INSCRIPTION_SIZE];
     serialize_inscription_req(&req, buffer_cmd);
@@ -488,6 +539,7 @@ int initialiser_profil(uint16_t *mon_id, uint16_t *mon_port_udp, char *cle_serve
         *mon_id = rep.id;
         *mon_port_udp = rep.portudp;
         memcpy(cle_serveur, rep.cle, 113);
+        memcpy(g_cle_serveur, rep.cle, 113);
 
         fichier = fopen("mon_profil.txt", "wb");
         if (fichier) {
