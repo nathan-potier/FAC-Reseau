@@ -35,11 +35,11 @@ int envoyer_message_udp_ipv6(const char *ip_dest, int port_dest, const uint8_t *
 // Envoie une erreur TCP (CODEREQ = 31) avec un message
 void envoyer_erreur_tcp_ssl(SSL *ssl, const char *message);
 
-// Génère les fichiers priv-ed.pem et pub-ed.pem 
-void generer_cles_ed25519(char *cle_publique_113_octets);
+// Gère les fichiers priv_xxx.pem et pub_xxx.pem
+void generer_cles_ed25519(char *cle_publique_113_octets, const char *prefix);
 
-// Signe un message 
-int signer_message_ed25519(const uint8_t *message, size_t message_len, uint8_t *signature);
+// Signe un message (en précisant quelle clé privée utiliser)
+int signer_message_ed25519(const uint8_t *message, size_t message_len, uint8_t *signature, const char *fichier_priv);
 
 // Vérifie une signature 
 int verifier_signature_ed25519(const char *cle_publique_113_octets, const uint8_t *message, size_t message_len, const uint8_t *signature);

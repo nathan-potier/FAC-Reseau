@@ -194,42 +194,41 @@ void envoyer_erreur_tcp_ssl(SSL *ssl, const char *message_erreur) {
 
 
 
-void generer_cles_ed25519(char *cle_publique_113_octets) {
+void generer_cles_ed25519(char *cle_publique_113_octets, const char *prefix) {
+    char cmd1[256], cmd2[256], fichier_pub[128];
     
-    system("openssl genpkey -algorithm ed25519 -out priv-ed.pem 2>/dev/null");
-    system("openssl pkey -in priv-ed.pem -pubout -out pub-ed.pem 2>/dev/null");
+    // Génère les commandes dynamiquement : priv_client.pem ou priv_serveur.pem
+    sprintf(cmd1, "openssl genpkey -algorithm ed25519 -out priv_%s.pem 2>/dev/null", prefix);
+    sprintf(cmd2, "openssl pkey -in priv_%s.pem -pubout -out pub_%s.pem 2>/dev/null", prefix, prefix);
+    
+    system(cmd1);
+    system(cmd2);
 
-    // fichier fait exactement 113 octets
-    FILE *f_pub = fopen("pub-ed.pem", "r");
+    sprintf(fichier_pub, "pub_%s.pem", prefix);
+    FILE *f_pub = fopen(fichier_pub, "r");
     if (f_pub != NULL) {
         fread(cle_publique_113_octets, 1, 113, f_pub);
         fclose(f_pub);
     }
 }
 
-
-int signer_message_ed25519(const uint8_t *msg, size_t msg_len, uint8_t *sig) {
-    // Lecture de la clé privée 113 octets
-    FILE *f = fopen("priv-ed.pem", "r");
+int signer_message_ed25519(const uint8_t *msg, size_t msg_len, uint8_t *sig, const char *fichier_priv) {
+    FILE *f = fopen(fichier_priv, "r");
     if (!f) return 0;
     EVP_PKEY *pkey = PEM_read_PrivateKey(f, NULL, NULL, NULL);
     fclose(f);
     if (!pkey) return 0;
 
-  
     EVP_MD_CTX *mdctx;
     if ((mdctx = EVP_MD_CTX_create()) == NULL) {
-        EVP_PKEY_free(pkey);
-        return 0;
+        EVP_PKEY_free(pkey); return 0;
     }
 
-    // initialisation de la signature
     if (EVP_DigestSignInit(mdctx, NULL, NULL, NULL, pkey) != 1) {
         EVP_MD_CTX_free(mdctx); EVP_PKEY_free(pkey); return 0;
     }
 
-    // Signature 
-    size_t slen = 64; // ED25519 génère toujours 64 octets
+    size_t slen = 64; 
     if (EVP_DigestSign(mdctx, sig, &slen, msg, msg_len) != 1) {
         EVP_MD_CTX_free(mdctx); EVP_PKEY_free(pkey); return 0;
     }
