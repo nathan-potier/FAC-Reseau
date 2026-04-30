@@ -141,7 +141,7 @@ int envoyer_requete_tcp(const uint8_t *buffer_cmd, size_t taille_msg, uint8_t *b
 
     // On signe avec notre clé privée locale
     uint8_t signature[64];
-    if (!signer_message_ed25519(data_to_sign, 6, signature)) {
+    if (!signer_message_ed25519(data_to_sign, 6, signature, "priv_client.pem")) {
         printf("[Erreur Client] Impossible de signer le message d'authentification.\n");
         SSL_shutdown(ssl); SSL_free(ssl); SSL_CTX_free(ctx); close(sock_cmd); return -1;
     }
@@ -493,7 +493,7 @@ int initialiser_profil(uint16_t *mon_id, uint16_t *mon_port_udp, char *cle_serve
     strncpy(req.nom, pseudo, 10);
 
     char cle_publique_client[113];
-    generer_cles_ed25519(cle_publique_client); // Génère priv-ed.pem et pub-ed.pem
+    generer_cles_ed25519(cle_publique_client, "client");
     memcpy(req.cle, cle_publique_client, 113);
 
     uint8_t buffer_cmd[REQ_INSCRIPTION_SIZE], buffer_rep[RESP_INSCRIPTION_SIZE];
