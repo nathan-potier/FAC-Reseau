@@ -21,6 +21,7 @@
 #define MAX_MESSAGES 2000
 
 SSL_CTX *ctx_global;
+char cle_publique_serveur[113];
 
 // Représentation interne d'un utilisateur côté serveur
 typedef struct {
@@ -122,6 +123,58 @@ void *serve(void *arg) {
     memcpy(&entete, buffer_reception, 2);
     entete = ntohs(entete);
     uint8_t codereq = entete >> 11;
+    uint16_t id_client = entete & 0x07FF;
+
+    if (codereq == 0) {
+        //Lire les 70 octets restants du message d'authentification
+        if (my_recv_ssl(ssl, buffer_reception + 2, 70) <= 0) {
+            SSL_shutdown(ssl); SSL_free(ssl); close(sockclient); return NULL;
+        }
+
+        // Récupérer la clé publique du client depuis l'annuaire
+        char cle_client[113] = {0};
+        int client_trouve = 0;
+        pthread_mutex_lock(&mutex_annuaire);
+        if (id_client > 0 && id_client <= nb_inscrits) {
+            memcpy(cle_client, annuaire[id_client - 1].cle, 113);
+            client_trouve = 1;
+        }
+        pthread_mutex_unlock(&mutex_annuaire);
+
+        if (!client_trouve) {
+            envoyer_erreur_tcp_ssl(ssl, "Erreur : Client inconnu.");
+            SSL_shutdown(ssl); SSL_free(ssl); close(sockclient); return NULL;
+        }
+
+        // Vérifier la signature du client
+        if (!verifier_signature_ed25519(cle_client, buffer_reception, 6, buffer_reception + 8)) {
+            printf("[Alerte Serveur] Usurpation d'identité bloquée pour l'ID %u !\n", id_client);
+            SSL_shutdown(ssl); SSL_free(ssl); close(sockclient); return NULL;
+        }
+
+        // Réponse du serveur
+        uint8_t buffer_auth_rep[72];
+        memcpy(buffer_auth_rep, buffer_reception, 6); // On copie CODEREQ(0), ID et NUM
+        uint16_t lsig_net = htons(64);
+        memcpy(buffer_auth_rep + 6, &lsig_net, 2);
+
+        //Le serveur signe les 6 octets
+        uint8_t signature_serveur[64];
+        if (!signer_message_ed25519(buffer_auth_rep, 6, signature_serveur, "priv_serveur.pem")) {
+            SSL_shutdown(ssl); SSL_free(ssl); close(sockclient); return NULL;
+        }
+        memcpy(buffer_auth_rep + 8, signature_serveur, 64);
+
+        // Renvoyer la validation au client
+        my_send_ssl(ssl, buffer_auth_rep, 72);
+
+        if (my_recv_ssl(ssl, buffer_reception, 2) <= 0) {
+            SSL_shutdown(ssl); SSL_free(ssl); close(sockclient); return NULL;
+        }
+        memcpy(&entete, buffer_reception, 2);
+        entete = ntohs(entete);
+        codereq = entete >> 11; // On met à jour le codereq
+    }
 
 
     //A FACTORISER QUAND ON A LE TEMPS FONCTIONS POUR CHAQUE CODEREQ 
@@ -146,7 +199,7 @@ void *serve(void *arg) {
                 reponse.codereq = 2; 
                 reponse.id = nb_inscrits;
                 reponse.portudp = annuaire[nb_inscrits - 1].port_udp;
-                memset(reponse.cle, 0, 113); 
+                memcpy(reponse.cle, cle_publique_serveur, 113);
             }
             pthread_mutex_unlock(&mutex_annuaire);
 
@@ -548,6 +601,25 @@ void *serve(void *arg) {
                 break;
             }
 
+            pthread_mutex_lock(&mutex_messages);
+            int billet_trouve = 0;
+            for (int i = 0; i < nb_messages; i++) {
+                if (historique[i].id_groupe == req.id_groupe && 
+                    historique[i].numb == req.numb && 
+                    historique[i].numr == 0) {
+                    billet_trouve = 1;
+                    break;
+                }
+            }
+
+            if (!billet_trouve) {
+                pthread_mutex_unlock(&mutex_messages);
+                envoyer_erreur_tcp_ssl(ssl, "Erreur : Le billet auquel vous repondez n'existe pas !");
+                break;
+            }
+
+            pthread_mutex_unlock(&mutex_messages);
+
             rep_repondre_billet_t rep;
             rep.codereq = 15;
             rep.id_groupe = req.id_groupe;
@@ -616,12 +688,17 @@ void *serve(void *arg) {
             pthread_mutex_lock(&mutex_messages);
 
             int idx_start = -1;
-            for (int i = 0; i < nb_messages; i++) {
-                if (historique[i].id_groupe == req.id_groupe && 
-                    historique[i].numb == req.numb && 
-                    historique[i].numr == req.numr) {
-                    idx_start = i;
-                    break;
+            
+            if (req.numb != 2047) {
+                idx_start = nb_messages; 
+                
+                for (int i = 0; i < nb_messages; i++) {
+                    if (historique[i].id_groupe == req.id_groupe && 
+                        historique[i].numb == req.numb && 
+                        historique[i].numr == req.numr) {
+                        idx_start = i;
+                        break;
+                    }
                 }
             }
 
@@ -716,6 +793,7 @@ int main(void) {
         ERR_print_errors_fp(stderr); exit(1);
     }
 
+    generer_cles_ed25519(cle_publique_serveur, "serveur");
 
     while (1) {
         struct sockaddr_in6 adrclient;
