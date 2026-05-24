@@ -32,6 +32,7 @@ int main() {
     if (sock_udp >= 0) {
         pthread_t thread_udp;
         pthread_create(&thread_udp, NULL, ecoute_notifications_udp, &sock_udp);
+        pthread_detach(thread_udp);
         printf("Écoute des notifications UDP activée sur le port %u.\n", mon_port_udp);
     }
 

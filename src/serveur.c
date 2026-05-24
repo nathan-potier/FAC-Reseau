@@ -193,6 +193,7 @@ void *serve(void *arg) {
                 nb_inscrits++;
                 annuaire[nb_inscrits - 1].id = nb_inscrits;
                 strncpy(annuaire[nb_inscrits - 1].pseudo, requete.nom, 10);
+                annuaire[nb_inscrits - 1].pseudo[10] = '\0';
                 annuaire[nb_inscrits - 1].port_udp = 5000 + nb_inscrits;
                 memcpy(annuaire[nb_inscrits - 1].cle, requete.cle, 113);
 
@@ -229,6 +230,7 @@ void *serve(void *arg) {
                 groupes[nb_groupes - 1].id_groupe = nouvel_idg;
                 groupes[nb_groupes - 1].id_admin = requete.id;
                 strncpy(groupes[nb_groupes - 1].nom, requete.nomg, len);
+                groupes[nb_groupes - 1].nom[len] = '\0';
                 groupes[nb_groupes - 1].port_mdiff = 8000 + nouvel_idg;
                 
                 // celui qui crée le groupe en devient automatiquement membre
@@ -815,6 +817,10 @@ int main(void) {
             close(*sockclient);
             free(sockclient);
         }
+        else{
+            pthread_detach(thread);
+        }
+        
     }
 
     close(sock_serveur);
