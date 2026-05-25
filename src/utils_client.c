@@ -335,8 +335,6 @@ void cmd_invite(char *args, uint16_t mon_id) {
 void cmd_li(uint16_t mon_id) {
     req_lister_invites_t req_li = { .codereq = 6, .id_client = mon_id };
     uint8_t buffer_cmd[512];
-    
-    // On augmente ce buffer car une liste pleine (31 invitations) dépassera 512 octets !
     uint8_t buffer_rep[2048]; 
     
     size_t taille_msg = serialize_lister_invites(&req_li, buffer_cmd);
@@ -351,8 +349,6 @@ void cmd_li(uint16_t mon_id) {
             printf("\n--- VOS INVITATIONS EN ATTENTE (%d) ---\n", rep_li.nb);
 
             for (int i = 0; i < rep_li.nb; i++) {
-                // On utilise les formateurs "%.31s" et "%.10s" pour éviter d'afficher des caractères 
-                // bizarres dans le terminal si la chaîne fait exactement la taille max sans \0.
                 printf(" -> Groupe ID : %u | Nom : \"%.31s\" | Admin : %.10s\n", 
                        rep_li.id_groupes[i], 
                        rep_li.nom_groupes[i], 
