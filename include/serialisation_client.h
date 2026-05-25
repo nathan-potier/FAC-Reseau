@@ -1,0 +1,65 @@
+#ifndef SERIALISATION_CLIENT_H
+#define SERIALISATION_CLIENT_H
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <string.h>
+#include <arpa/inet.h>
+
+#include "codereq.h"
+
+// Serialisation Requête d'inscription (CODEREQ=1)
+void serialize_inscription_req(const req_inscription_t *req, uint8_t *buffer);
+
+// Désérialise la réponse du serveur (CODEREQ=2) pour récupérer l'ID et le port UDP
+void deserialize_inscription_resp(const uint8_t *buffer, rep_inscription_t *rep);
+
+// retournent la taille du message généré en octets pour l'envoi par le send:
+// CODEREQ = 3
+size_t serialize_creer_groupe(const req_creer_groupe_t *req, uint8_t *buffer);
+
+// Désérialise la réponse du serveur apres la création d'un groupe (CODEREQ=4)
+void deserialize_creer_groupe_resp(const uint8_t *buffer, rep_creer_groupe_t *rep);
+
+// CODEREQ = 5
+size_t serialize_inviter(const req_inviter_t *req, uint8_t *buffer);
+
+// CODEREQ = 6
+size_t serialize_lister_invites(const req_lister_invites_t *req, uint8_t *buffer);
+
+// CODEREQ = 7
+void deserialize_lister_invites_resp(const uint8_t *buffer, rep_lister_invites_t *rep);
+
+// CODEREQ = 8
+size_t serialize_action_invitation(const req_action_invitation_t *req, uint8_t *buffer);
+
+// CODEREQ = 9
+void deserialize_action_invitation_acceptee_resp(const uint8_t *buffer, rep_action_invitation_acceptee_t *rep);
+
+// CODEREQ = 24
+void deserialize_inviter_resp(const uint8_t *buffer, rep_inviter_t *rep);
+
+// CODEREQ = 10
+size_t serialize_demander_membres(const req_demander_membres_t *req, uint8_t *buffer);
+
+// CODEREQ = 11
+void deserialize_demander_membres_resp(const uint8_t *buffer, rep_demander_membres_t *rep);
+
+// CODEREQ = 12
+size_t serialize_poster_billet(const req_poster_billet_t *req, uint8_t *buffer);
+
+// CODEREQ = 13
+void deserialize_poster_billet_resp(const uint8_t *buffer, rep_poster_billet_t *rep);
+
+// CODEREQ = 14
+size_t serialize_repondre_billet(const req_repondre_billet_t *req, uint8_t *buffer);
+
+// CODEREQ = 15
+void deserialize_repondre_billet_resp(const uint8_t *buffer, rep_repondre_billet_t *rep);
+
+// CODEREQ = 16
+size_t serialize_demander_billets(const req_demander_billets_t *req, uint8_t *buffer);
+
+// CODEREQ = 17
+void deserialize_historique_resp(const uint8_t *buffer, rep_historique_t *rep);
+#endif
