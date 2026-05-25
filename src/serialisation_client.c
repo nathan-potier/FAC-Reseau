@@ -125,7 +125,7 @@ void deserialize_lister_invites_resp(const uint8_t *buffer, rep_lister_invites_t
     ligne1 = ntohs(ligne1);
     
     rep->codereq = ligne1 >> 11;
-    rep->nb = (ligne1 >> 6) & 0x1F; 
+    rep->nb = ligne1 & 0x07FF;
     
     size_t decalage = 2;
     for(int i = 0; i < rep->nb; i++) {
@@ -134,7 +134,16 @@ void deserialize_lister_invites_resp(const uint8_t *buffer, rep_lister_invites_t
         ligne_groupe = ntohs(ligne_groupe);
         
         rep->id_groupes[i] = ligne_groupe >> 5;
+        rep->len_groupes[i] = ligne_groupe & 0x1F;
         decalage += 2;
+        
+        memset(rep->nom_groupes[i], 0, 32);
+        memcpy(rep->nom_groupes[i], buffer + decalage, rep->len_groupes[i]);
+        decalage += rep->len_groupes[i];
+        
+        memset(rep->nom_admins[i], 0, 10);
+        memcpy(rep->nom_admins[i], buffer + decalage, 10);
+        decalage += 10;
     }
 }
 

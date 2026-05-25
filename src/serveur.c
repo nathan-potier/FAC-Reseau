@@ -302,14 +302,37 @@ void *serve(void *arg) {
             deserialize_lister_invites_req(buffer_reception, &req);
 
             rep_lister_invites_t rep;
+            memset(&rep, 0, sizeof(rep));
             rep.codereq = 7;
             rep.nb = 0;
 
             pthread_mutex_lock(&mutex_annuaire);
             for (int i = 0; i < nb_invitations; i++) {
                 if (invitations[i].id_invite == req.id_client) {
-                    rep.id_groupes[rep.nb] = invitations[i].id_groupe;
+                    uint16_t idg = invitations[i].id_groupe;
+                    rep.id_groupes[rep.nb] = idg;
+                    
+                    // Recherche des informations complémentaires du groupe
+                    if (idg > 0 && idg <= nb_groupes) {
+                        int idx_groupe = idg - 1;
+                        
+                        // Nom du groupe et sa taille
+                        size_t len = strlen(groupes[idx_groupe].nom);
+                        if (len > 31) len = 31; // taille sur 5 bits = max 31
+                        rep.len_groupes[rep.nb] = (uint8_t)len;
+                        strncpy(rep.nom_groupes[rep.nb], groupes[idx_groupe].nom, len);
+                        
+                        // Pseudo de l'admin
+                        uint16_t id_admin = groupes[idx_groupe].id_admin;
+                        if (id_admin > 0 && id_admin <= nb_inscrits) {
+                            strncpy(rep.nom_admins[rep.nb], annuaire[id_admin - 1].pseudo, 10);
+                        } else {
+                            strncpy(rep.nom_admins[rep.nb], "Inconnu", 10);
+                        }
+                    }
+                    
                     rep.nb++;
+                    if (rep.nb >= 31) break; // Sécurité pour ne pas dépasser la taille du tableau (31 max)
                 }
             }
             pthread_mutex_unlock(&mutex_annuaire);

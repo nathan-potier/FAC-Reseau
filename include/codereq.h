@@ -69,6 +69,9 @@ typedef struct {
     uint8_t codereq;      
     uint8_t nb;           // Nombre d'invitations (5 bits max)
     uint16_t id_groupes[31]; // Les IDs des groupes (11 bits chacun)
+    uint8_t len_groupes[31]; 
+    char nom_groupes[31][32]; //max 31 char car LEN sur 5 bits
+    char nom_admins[31][10]; 
 } rep_lister_invites_t;
 
 // CODEREQ = 8 (Accepter/Refuser/Quitter)

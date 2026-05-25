@@ -95,13 +95,22 @@ void deserialize_lister_invites_req(const uint8_t *buffer, req_lister_invites_t 
 
 // Sérialise la réponse de listing des invitations (CODEREQ = 7)
 size_t serialize_lister_invites_resp(const rep_lister_invites_t *rep, uint8_t *buffer) {
-    uint16_t l1 = htons((rep->codereq << 11) | ((rep->nb & 0x1F) << 6));
+    uint16_t l1 = htons((rep->codereq << 11) | rep->nb);
     memcpy(buffer, &l1, 2);
     int offset = 2;
     for (int i = 0; i < rep->nb; i++) {
-        uint16_t ligne_g = htons(rep->id_groupes[i] << 5);
+        // IDG1 (11 bits) + LEN1 (5 bits)
+        uint16_t ligne_g = htons((rep->id_groupes[i] << 5) | (rep->len_groupes[i] & 0x1F));
         memcpy(buffer + offset, &ligne_g, 2);
         offset += 2;
+        
+        // NOMG1
+        memcpy(buffer + offset, rep->nom_groupes[i], rep->len_groupes[i]);
+        offset += rep->len_groupes[i];
+        
+        // NOM1 (Admin) 10 octets
+        memcpy(buffer + offset, rep->nom_admins[i], 10);
+        offset += 10;
     }
     return offset;
 }

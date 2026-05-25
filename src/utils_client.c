@@ -334,19 +334,29 @@ void cmd_invite(char *args, uint16_t mon_id) {
 
 void cmd_li(uint16_t mon_id) {
     req_lister_invites_t req_li = { .codereq = 6, .id_client = mon_id };
-    uint8_t buffer_cmd[512], buffer_rep[512];
+    uint8_t buffer_cmd[512];
+    
+    // On augmente ce buffer car une liste pleine (31 invitations) dépassera 512 octets !
+    uint8_t buffer_rep[2048]; 
+    
     size_t taille_msg = serialize_lister_invites(&req_li, buffer_cmd);
 
     int recu = envoyer_requete_tcp(buffer_cmd, taille_msg, buffer_rep, sizeof(buffer_rep), 0);
     if (recu >= 2) {
         rep_lister_invites_t rep_li;
+        memset(&rep_li, 0, sizeof(rep_li));
         deserialize_lister_invites_resp(buffer_rep, &rep_li);
 
         if (rep_li.codereq == 7) {
             printf("\n--- VOS INVITATIONS EN ATTENTE (%d) ---\n", rep_li.nb);
 
             for (int i = 0; i < rep_li.nb; i++) {
-                printf("Groupe ID : %u\n", rep_li.id_groupes[i]);
+                // On utilise les formateurs "%.31s" et "%.10s" pour éviter d'afficher des caractères 
+                // bizarres dans le terminal si la chaîne fait exactement la taille max sans \0.
+                printf(" -> Groupe ID : %u | Nom : \"%.31s\" | Admin : %.10s\n", 
+                       rep_li.id_groupes[i], 
+                       rep_li.nom_groupes[i], 
+                       rep_li.nom_admins[i]);
             }
 
             if (rep_li.nb == 0) printf("Vous n'avez aucune invitation.\n");
